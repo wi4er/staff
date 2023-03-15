@@ -5,8 +5,8 @@ plugins {
 	id("io.spring.dependency-management") version "1.1.0"
 	kotlin("jvm") version "1.7.22"
 	kotlin("plugin.spring") version "1.7.22"
+	jacoco
 }
-
 
 group = "com.example"
 version = "0.0.1-SNAPSHOT"
@@ -18,14 +18,24 @@ repositories {
 }
 
 dependencies {
+	implementation("org.jetbrains.kotlin:kotlin-reflect")
+
+	// Web
 	implementation("org.springframework.boot:spring-boot-starter")
 	implementation("org.springframework.boot:spring-boot-starter-web")
-	implementation("org.jetbrains.kotlin:kotlin-reflect")
-	testImplementation("org.springframework.boot:spring-boot-starter-test")
+	implementation("com.google.code.gson:gson:2.10")
 
 	// Database
 	implementation("org.jetbrains.exposed:exposed:$exposedVersion")
-	implementation("org.postgresql:postgresql:42.2.2")
+	implementation("org.postgresql:postgresql:42.5.1")
+
+	// Tests
+	testImplementation("org.springframework.boot:spring-boot-starter-test")
+}
+
+jacoco {
+	toolVersion = "0.8.8"
+	reportsDirectory.set(layout.buildDirectory.dir("customJacocoReportDir"))
 }
 
 tasks.withType<KotlinCompile> {
@@ -37,4 +47,11 @@ tasks.withType<KotlinCompile> {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+}
+
+tasks.test {
+	finalizedBy(tasks.jacocoTestReport) // report is always generated after tests run
+}
+tasks.jacocoTestReport {
+	dependsOn(tasks.test) // tests are required to run before generating the report
 }
