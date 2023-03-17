@@ -5,6 +5,7 @@ plugins {
 	id("io.spring.dependency-management") version "1.1.0"
 	kotlin("jvm") version "1.7.22"
 	kotlin("plugin.spring") version "1.7.22"
+
 	jacoco
 }
 
@@ -27,7 +28,9 @@ dependencies {
 
 	// Database
 	implementation("org.jetbrains.exposed:exposed:$exposedVersion")
+	implementation("org.flywaydb:flyway-core:9.15.2")
 	implementation("org.postgresql:postgresql:42.5.1")
+	implementation("com.zaxxer:HikariCP:5.0.1")
 
 	// Tests
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
@@ -50,8 +53,9 @@ tasks.withType<Test> {
 }
 
 tasks.test {
-	finalizedBy(tasks.jacocoTestReport) // report is always generated after tests run
+	finalizedBy(tasks.jacocoTestReport)
 }
+
 tasks.jacocoTestReport {
-	dependsOn(tasks.test) // tests are required to run before generating the report
+	dependsOn(tasks.test)
 }
