@@ -1,9 +1,11 @@
 package com.example.staff.model
 
+import org.jetbrains.exposed.exceptions.ExposedSQLException
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.boot.test.context.SpringBootTest
 
 @SpringBootTest
@@ -39,6 +41,27 @@ class GroupEntityTests {
 
         transaction {
             user.group = SizedCollection(listOf(user_group))
+        }
+    }
+
+    @Test
+    fun `Shouldn't create same value`() {
+        val user_group = transaction {
+            GroupEntity.deleteAll()
+
+            Group.new {}
+        }
+
+        val user = transaction {
+            UserEntity.deleteAll()
+
+            User.new { login = "user_name" }
+        }
+
+        assertThrows<ExposedSQLException> {
+            transaction {
+                user.group = SizedCollection(listOf(user_group, user_group))
+            }
         }
     }
 }
