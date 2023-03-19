@@ -1,27 +1,32 @@
 package com.example.staff.model
 
-import org.jetbrains.exposed.sql.SchemaUtils
-import org.jetbrains.exposed.sql.SizedCollection
-import org.jetbrains.exposed.sql.deleteAll
+import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.SpringBootTest
 
 @SpringBootTest
-class UserGroupEntityTests {
+class GroupEntityTests {
     @Test
-    fun `Should create group`() {
+    fun `Should get empty list`() {
         transaction {
-            SchemaUtils.create(UserGroupEntity)
-            SchemaUtils.create(User2UserGroup)
+            GroupEntity.deleteAll()
 
+            addLogger(StdOutSqlLogger)
+
+            val list = GroupEntity.selectAll().toList()
+
+            Assertions.assertEquals(0, list.size)
         }
     }
 
     @Test
     fun `Should create group with users`() {
         val user_group = transaction {
-            UserGroup.new {}
+            GroupEntity.deleteAll()
+
+            Group.new {}
         }
 
         val user = transaction {

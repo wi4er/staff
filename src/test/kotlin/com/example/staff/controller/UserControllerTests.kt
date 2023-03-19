@@ -51,12 +51,12 @@ class UserControllerTests {
             ?.perform(
                 post("/user")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("""{"login":"admin"}""")
+                    .content("""{"login":"root_admin"}""")
             )
             ?.andExpect(status().isOk)
             ?.andExpect {
                 val item = Gson().fromJson(it.response.contentAsString, UserResolver::class.java)
-                Assertions.assertEquals("admin", item.login)
+                Assertions.assertEquals("root_admin", item.login)
             }
 
     }
@@ -68,7 +68,7 @@ class UserControllerTests {
 
             UserEntity.insert {
                 it[id] = EntityID(1, table = UserEntity)
-                it[login] = "OLD"
+                it[login] = "OLD_NAME"
             }
         }
 
@@ -76,12 +76,12 @@ class UserControllerTests {
             ?.perform(
                 put("/user")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("""{"id":1, "login":"updated"}""")
+                    .content("""{"id":1, "login":"NEW_NAME"}""")
             )
             ?.andExpect(status().isOk)
             ?.andExpect {
                 val item = Gson().fromJson(it.response.contentAsString, UserResolver::class.java)
-                Assertions.assertEquals("updated", item.login)
+                Assertions.assertEquals("NEW_NAME", item.login)
             }
     }
 
@@ -96,7 +96,7 @@ class UserControllerTests {
                 ?.perform(
                     put("/user")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""{"id":1, "login":"updated"}""")
+                        .content("""{"id":1, "login":"NEW_NAME"}""")
                 )
         }
     }
@@ -108,7 +108,7 @@ class UserControllerTests {
 
             UserEntity.insert {
                 it[id] = EntityID(1, table = UserEntity)
-                it[login] = "OLD"
+                it[login] = "OLD_NAME"
             }
         }
 
@@ -119,7 +119,7 @@ class UserControllerTests {
             ?.andExpect(status().isOk)
             ?.andExpect {
                 val item = Gson().fromJson(it.response.contentAsString, UserResolver::class.java)
-                Assertions.assertEquals("OLD", item.login)
+                Assertions.assertEquals("OLD_NAME", item.login)
             }
     }
 
