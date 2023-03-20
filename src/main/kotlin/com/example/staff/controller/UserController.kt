@@ -1,28 +1,43 @@
 package com.example.staff.controller
 
+import com.example.staff.input.UserInput
+import com.example.staff.model.User2GroupEntity
 import com.example.staff.model.UserEntity
+import com.example.staff.resolver.UserResolver
+import com.example.staff.saver.user.UserSaver
+import org.jetbrains.exposed.dao.EntityID
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.springframework.web.bind.annotation.*
 
-data class UserResolver(
-    private val item: ResultRow
-) {
-    val id = item[UserEntity.id].value
-    val login = item[UserEntity.login]
-}
-
-class UserInput {
-    var id: Int? = null
-    var login: String = ""
-}
-
 @RestController
 @RequestMapping("/user")
-class UserController {
+class UserController(
+    val saver: List<UserSaver>,
+) {
+    fun Query.toResolver(): List<UserResolver> {
+        return fold(mutableMapOf<Int, UserResolver>()) { acc, row ->
+            acc[row[UserEntity.id].value]?.let {
+                it.group.add(row[User2GroupEntity.group].value)
+            } ?: run {
+                acc[row[UserEntity.id].value] = UserResolver(
+                    id = row[UserEntity.id].value,
+                    login = row[UserEntity.login],
+                    group = row[User2GroupEntity.group]?.value?.let {
+                        mutableListOf(it)
+                    } ?: mutableListOf(),
+                )
+            }
+            acc
+        }.values.toList()
+    }
+
     @GetMapping
     fun getList(): List<UserResolver> = transaction {
-        UserEntity.selectAll().map(::UserResolver)
+        UserEntity
+            .join(User2GroupEntity, JoinType.LEFT)
+            .selectAll()
+            .toResolver()
     }
 
     @PostMapping
@@ -31,9 +46,14 @@ class UserController {
     ): UserResolver = transaction {
         UserEntity.insertAndGetId {
             it[login] = input.login
-        }.let {
-            UserEntity.select { UserEntity.id eq it }.firstOrNull()
-                ?.let(::UserResolver)
+        }.also { id ->
+            saver.forEach { it.save(id, input) }
+        }.let { id ->
+            UserEntity
+                .join(User2GroupEntity, JoinType.LEFT)
+                .select { UserEntity.id eq id }
+                .toResolver()
+                .firstOrNull()
         } ?: throw Exception("Wrong user")
     }
 
@@ -45,9 +65,14 @@ class UserController {
             where = { UserEntity.id eq input.id }
         ) {
             it[login] = input.login
+        }.also { id ->
+            saver.forEach { it.save(EntityID(id, UserEntity), input) }
         }.let {
-            UserEntity.select { UserEntity.id eq it }.firstOrNull()
-                ?.let(::UserResolver)
+            UserEntity
+                .join(User2GroupEntity, JoinType.LEFT)
+                .select { UserEntity.id eq it }
+                .toResolver()
+                .firstOrNull()
         } ?: throw Exception("Wrong user")
     }
 
@@ -56,9 +81,11 @@ class UserController {
         @RequestParam
         id: Int
     ): UserResolver = transaction {
-        UserEntity.select { UserEntity.id eq id }
+        UserEntity
+            .join(User2GroupEntity, JoinType.LEFT)
+            .select { UserEntity.id eq id }
+            .toResolver()
             .firstOrNull()
-            ?.let(::UserResolver)
             ?.also { UserEntity.deleteWhere { UserEntity.id eq id } }
             ?: throw Exception("Wrong user")
     }

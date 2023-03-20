@@ -1,9 +1,8 @@
 package com.example.staff.model
 
+import org.jetbrains.exposed.dao.EntityID
 import org.jetbrains.exposed.exceptions.ExposedSQLException
-import org.jetbrains.exposed.sql.deleteAll
-import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
@@ -30,6 +29,28 @@ class UserEntityTests {
             }
 
             Assertions.assertEquals("user_name", inst.get(UserEntity.login))
+        }
+    }
+
+    @Test
+    fun `Should create user with groups`() {
+        transaction {
+            GroupEntity.deleteAll()
+            GroupEntity.insert { it[id] = EntityID(1, GroupEntity) }
+
+            UserEntity.deleteAll()
+            UserEntity.insert {
+                it[id] = EntityID(1, UserEntity)
+                it[login] = "user_name"
+            }
+
+            User2GroupEntity.insert {
+                it[user] = EntityID(1, UserEntity)
+                it[group] = EntityID(1, GroupEntity)
+            }
+
+            addLogger(StdOutSqlLogger)
+
         }
     }
 
