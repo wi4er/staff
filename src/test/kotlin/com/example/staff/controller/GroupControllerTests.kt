@@ -1,6 +1,7 @@
 package com.example.staff.controller
 
 import com.example.staff.model.GroupEntity
+import com.example.staff.resolver.GroupResolver
 import com.google.gson.Gson
 import org.jetbrains.exposed.dao.EntityID
 import org.jetbrains.exposed.sql.deleteAll
@@ -28,74 +29,170 @@ class GroupControllerTests {
     fun `Should get empty list`() {
         transaction { GroupEntity.deleteAll() }
 
-        mockMvc?.perform(get("/group"))
+        mockMvc
+            ?.perform(get("/group"))
             ?.andExpect(status().isOk)
             ?.andExpect {
 
             }
     }
 
-    @Test
-    fun `Should post item`() {
-        transaction {
-            GroupEntity.deleteAll()
+    @SpringBootTest
+    @AutoConfigureMockMvc
+    class GroupControllerPostTests {
+        @Autowired
+        private val mockMvc: MockMvc? = null
+
+        @Test
+        fun `Should post item`() {
+            transaction { GroupEntity.deleteAll() }
+
+            mockMvc
+                ?.perform(
+                    post("/group")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"id":1}""")
+                )
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val item = Gson().fromJson(it.response.contentAsString, GroupResolver::class.java)
+
+                    Assertions.assertEquals(1, item.id)
+                }
         }
 
-        mockMvc?.perform(
-            post("/group")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"id":1}""")
-        )
-            ?.andExpect(status().isOk)
-            ?.andExpect {
-                val item = Gson().fromJson(it.response.contentAsString, GroupResolver::class.java)
-
-                Assertions.assertEquals(1, item.id)
+        @Test
+        fun `Should post with parent`() {
+            transaction {
+                GroupEntity.deleteAll()
+                GroupEntity.insert { it[id] = EntityID(111, GroupEntity) }
             }
-    }
 
-    @Test
-    fun `Shouldn't post with duplicate id`() {
-        transaction {
-            GroupEntity.deleteAll()
+            mockMvc
+                ?.perform(
+                    post("/group")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"id":1, "parent": 111}""")
+                )
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val item = Gson().fromJson(it.response.contentAsString, GroupResolver::class.java)
 
-            GroupEntity.insert {
-                it[GroupEntity.id] = EntityID(1, GroupEntity)
+                    Assertions.assertEquals(111, item.parent)
+                }
+        }
+
+        @Test
+        fun `Shouldn't post with wrong parent`() {
+            transaction {
+                GroupEntity.deleteAll()
+            }
+
+            assertThrows<Exception> {
+                mockMvc
+                    ?.perform(
+                        post("/group")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""{"id":1, "parent": 4444}""")
+                    )
             }
         }
 
-        assertThrows<Exception> {
+        @Test
+        fun `Shouldn't post with duplicate id`() {
+            transaction {
+                GroupEntity.deleteAll()
+
+                GroupEntity.insert {
+                    it[GroupEntity.id] = EntityID(1, GroupEntity)
+                }
+            }
+
+            assertThrows<Exception> {
+                mockMvc?.perform(
+                    post("/group")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"id":1}""")
+                )
+            }
+        }
+
+        @Test
+        fun `Should post without id`() {
+            transaction { GroupEntity.deleteAll() }
+
             mockMvc?.perform(
                 post("/group")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("""{"id":1}""")
+                    .content("""{}""")
             )
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val item = Gson().fromJson(it.response.contentAsString, GroupResolver::class.java)
+                    Assertions.assertNotNull(item.id)
+                }
         }
     }
 
-    @Test
-    fun `Should post without id`() {
-        transaction {
-            GroupEntity.deleteAll()
+    @SpringBootTest
+    @AutoConfigureMockMvc
+    class GroupControllerPutTests {
+        @Autowired
+        private val mockMvc: MockMvc? = null
+
+        @Test
+        fun `Should add parent to item`() {
+            transaction {
+                GroupEntity.deleteAll()
+                GroupEntity.insert { it[id] = EntityID(1, GroupEntity) }
+                GroupEntity.insert { it[id] = EntityID(111, GroupEntity) }
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/group?id=1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"id":1, "parent": 111}""")
+                )
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val item = Gson().fromJson(it.response.contentAsString, GroupResolver::class.java)
+
+                    Assertions.assertEquals(111, item.parent)
+                }
         }
 
-        mockMvc?.perform(
-            post("/group")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""{}""")
-        )
-            ?.andExpect(status().isOk)
-            ?.andExpect {
-                val item = Gson().fromJson(it.response.contentAsString, GroupResolver::class.java)
-                Assertions.assertNotNull(item.id)
+        @Test
+        fun `Should remove parent from item`() {
+            transaction {
+                GroupEntity.deleteAll()
+                GroupEntity.insert { it[id] = EntityID(111, GroupEntity) }
+                GroupEntity.insert {
+                    it[id] = EntityID(1, GroupEntity)
+                    it[parent] = EntityID(111, GroupEntity)
+                }
             }
+
+            mockMvc
+                ?.perform(
+                    put("/group?id=1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"id":1, "parent": null}""")
+                )
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val item = Gson().fromJson(it.response.contentAsString, GroupResolver::class.java)
+
+                    Assertions.assertNull(item.parent)
+                }
+        }
     }
 
     @Test
     fun `Should delete item`() {
         val id: Int = transaction {
             GroupEntity.deleteAll()
-            GroupEntity.insertAndGetId {  }.value
+            GroupEntity.insertAndGetId { }.value
         }
 
         mockMvc?.perform(delete("/group?id=${id}"))
