@@ -1,8 +1,7 @@
 package com.example.staff.controller
 
-import com.example.staff.model.GroupEntity
-import com.example.staff.model.User2GroupEntity
-import com.example.staff.model.UserEntity
+import com.example.staff.exception.PermissionException
+import com.example.staff.model.*
 import com.example.staff.resolver.UserResolver
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -17,6 +16,7 @@ import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.insertAndGetId
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.assertThrows
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 
@@ -30,18 +30,44 @@ class UserControllerTests {
         @Autowired
         private val mockMvc: MockMvc? = null
 
+        fun addPermission() {
+            GroupEntity.deleteAll()
+
+            GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
+
+            MethodPermissionEntity.insert {
+                it[method] = MethodType.GET
+                it[entity] = EntityType.USER
+                it[group] = EntityID(777, GroupEntity)
+            }
+        }
+
         @Test
         fun `Should get empty list`() {
-            transaction { UserEntity.deleteAll() }
+            transaction {
+                UserEntity.deleteAll()
+                addPermission()
+            }
 
             mockMvc
                 ?.perform(get("/user"))
                 ?.andExpect(status().isOk)
                 ?.andExpect {
                     val list = Gson().fromJson(it.response.contentAsString, Array<UserResolver>::class.java)
-
                     Assertions.assertEquals(0, list.size)
                 }
+        }
+
+        @Test
+        fun `Shouldn't get without permission`() {
+            transaction {
+                UserEntity.deleteAll()
+                MethodPermissionEntity.deleteAll()
+            }
+
+            assertThrows<Exception> {
+                mockMvc?.perform(get("/user"))
+            }
         }
 
         @Test
@@ -49,6 +75,8 @@ class UserControllerTests {
             transaction {
                 UserEntity.deleteAll()
                 GroupEntity.deleteAll()
+
+                addPermission()
 
                 val userId = UserEntity.insertAndGetId { it[login] = "user_name" }
                 val groupId = GroupEntity.insertAndGetId { it[id] = EntityID(22, GroupEntity) }
@@ -76,6 +104,8 @@ class UserControllerTests {
             transaction {
                 UserEntity.deleteAll()
                 GroupEntity.deleteAll()
+
+                addPermission()
 
                 val group1 = GroupEntity.insertAndGetId { it[id] = EntityID(1, GroupEntity) }
                 val group2 = GroupEntity.insertAndGetId { it[id] = EntityID(2, GroupEntity) }
@@ -112,9 +142,24 @@ class UserControllerTests {
         @Autowired
         private val mockMvc: MockMvc? = null
 
+        fun addPermission() {
+            GroupEntity.deleteAll()
+
+            GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
+
+            MethodPermissionEntity.insert {
+                it[method] = MethodType.POST
+                it[entity] = EntityType.USER
+                it[group] = EntityID(777, GroupEntity)
+            }
+        }
+
         @Test
         fun `Should post item`() {
-            transaction { UserEntity.deleteAll() }
+            transaction {
+                UserEntity.deleteAll()
+                addPermission()
+            }
 
             mockMvc
                 ?.perform(
@@ -130,10 +175,26 @@ class UserControllerTests {
         }
 
         @Test
-        fun `Should post with group`() {
+        fun `Shouldn't post without permission`() {
             transaction {
                 UserEntity.deleteAll()
                 GroupEntity.deleteAll()
+            }
+
+            assertThrows<Exception> {
+                mockMvc?.perform(
+                    post("/user")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"login":"root_admin"}""")
+                )
+            }
+        }
+
+        @Test
+        fun `Should post with group`() {
+            transaction {
+                UserEntity.deleteAll()
+                addPermission()
 
                 GroupEntity.insert { it[GroupEntity.id] = EntityID(33, GroupEntity) }
             }
@@ -159,10 +220,23 @@ class UserControllerTests {
         @Autowired
         private val mockMvc: MockMvc? = null
 
+        fun addPermission() {
+            GroupEntity.deleteAll()
+
+            GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
+
+            MethodPermissionEntity.insert {
+                it[method] = MethodType.PUT
+                it[entity] = EntityType.USER
+                it[group] = EntityID(777, GroupEntity)
+            }
+        }
+
         @Test
         fun `Should put user`() {
             transaction {
                 UserEntity.deleteAll()
+                addPermission()
 
                 UserEntity.insert {
                     it[id] = EntityID(1, UserEntity)
@@ -187,7 +261,7 @@ class UserControllerTests {
         fun `Should add group to user`() {
             transaction {
                 UserEntity.deleteAll()
-                GroupEntity.deleteAll()
+                addPermission()
 
                 UserEntity.insert {
                     it[id] = EntityID(1, UserEntity)
@@ -214,7 +288,7 @@ class UserControllerTests {
         fun `Should remove group from user`() {
             transaction {
                 UserEntity.deleteAll()
-                GroupEntity.deleteAll()
+                addPermission()
 
                 UserEntity.insert {
                     it[id] = EntityID(1, UserEntity)
@@ -244,7 +318,7 @@ class UserControllerTests {
         fun `Should change group from user`() {
             transaction {
                 UserEntity.deleteAll()
-                GroupEntity.deleteAll()
+                addPermission()
 
                 UserEntity.insert {
                     it[id] = EntityID(1, UserEntity)
@@ -274,15 +348,17 @@ class UserControllerTests {
 
         @Test
         fun `Shouldn't put item with wrong id`() {
-            transaction { UserEntity.deleteAll() }
+            transaction {
+                UserEntity.deleteAll()
+                addPermission()
+            }
 
             Assertions.assertThrows(Exception::class.java) {
-                mockMvc
-                    ?.perform(
-                        put("/user")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("""{"id":1, "login":"NEW_NAME"}""")
-                    )
+                mockMvc?.perform(
+                    put("/user")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"id":1, "login":"NEW_NAME"}""")
+                )
             }
         }
     }
@@ -293,10 +369,23 @@ class UserControllerTests {
         @Autowired
         private val mockMvc: MockMvc? = null
 
+        fun addPermission() {
+            GroupEntity.deleteAll()
+
+            GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
+
+            MethodPermissionEntity.insert {
+                it[method] = MethodType.DELETE
+                it[entity] = EntityType.USER
+                it[group] = EntityID(777, GroupEntity)
+            }
+        }
+
         @Test
         fun `Should delete item`() {
             transaction {
                 UserEntity.deleteAll()
+                addPermission()
 
                 UserEntity.insert {
                     it[id] = EntityID(1, UserEntity)
@@ -316,8 +405,23 @@ class UserControllerTests {
         }
 
         @Test
+        fun `Shouldn't delete without permission`() {
+            transaction {
+                UserEntity.deleteAll()
+                GroupEntity.deleteAll()
+            }
+
+            assertThrows<Exception> {
+                mockMvc?.perform(delete("/user?id=1"))
+            }
+        }
+
+        @Test
         fun `Shouldn't delete item with wrong id`() {
-            transaction { UserEntity.deleteAll() }
+            transaction {
+                UserEntity.deleteAll()
+                addPermission()
+            }
 
             Assertions.assertThrows(Exception::class.java) {
                 mockMvc?.perform(delete("/user?id=1"))

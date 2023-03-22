@@ -1,8 +1,11 @@
 package com.example.staff.controller
 
 import com.example.staff.input.UserInput
+import com.example.staff.model.EntityType
+import com.example.staff.model.MethodType
 import com.example.staff.model.User2GroupEntity
 import com.example.staff.model.UserEntity
+import com.example.staff.permission.MethodPermissionService
 import com.example.staff.resolver.UserResolver
 import com.example.staff.saver.user.UserSaver
 import org.jetbrains.exposed.dao.EntityID
@@ -14,6 +17,7 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/user")
 class UserController(
     val saver: List<UserSaver>,
+    val permissionService: MethodPermissionService,
 ) {
     fun Query.toResolver(): List<UserResolver> {
         return fold(mutableMapOf<Int, UserResolver>()) { acc, row ->
@@ -34,6 +38,11 @@ class UserController(
 
     @GetMapping
     fun getList(): List<UserResolver> = transaction {
+        permissionService.check(
+            entity = EntityType.USER,
+            method = MethodType.GET,
+        )
+
         UserEntity
             .join(User2GroupEntity, JoinType.LEFT)
             .selectAll()
@@ -44,6 +53,11 @@ class UserController(
     fun addItem(
         @RequestBody input: UserInput,
     ): UserResolver = transaction {
+        permissionService.check(
+            entity = EntityType.USER,
+            method = MethodType.POST,
+        )
+
         UserEntity.insertAndGetId {
             it[login] = input.login
         }.also { id ->
@@ -61,6 +75,11 @@ class UserController(
     fun updateItem(
         @RequestBody input: UserInput,
     ) = transaction {
+        permissionService.check(
+            entity = EntityType.USER,
+            method = MethodType.PUT,
+        )
+
         UserEntity.update(
             where = { UserEntity.id eq input.id }
         ) {
@@ -81,6 +100,11 @@ class UserController(
         @RequestParam
         id: Int
     ): UserResolver = transaction {
+        permissionService.check(
+            entity = EntityType.USER,
+            method = MethodType.DELETE,
+        )
+
         UserEntity
             .join(User2GroupEntity, JoinType.LEFT)
             .select { UserEntity.id eq id }
