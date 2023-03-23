@@ -10,9 +10,15 @@ import org.springframework.stereotype.Component
 
 @Component
 class MethodPermissionService {
-    fun check(entity: EntityType, method: MethodType) {
+    fun check(
+        entity: EntityType,
+        method: MethodType,
+        group: List<Int>,
+    ) {
         MethodPermissionEntity.select {
-            MethodPermissionEntity.method eq method and (MethodPermissionEntity.entity eq entity)
+            MethodPermissionEntity.method eq method and (MethodPermissionEntity.entity eq entity) and (
+                MethodPermissionEntity.group inList group
+            )
         }.firstOrNull() ?: throw PermissionException("Permission denied!")
     }
 }

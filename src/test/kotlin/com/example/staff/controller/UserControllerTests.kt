@@ -2,6 +2,8 @@ package com.example.staff.controller
 
 import com.example.staff.exception.PermissionException
 import com.example.staff.model.*
+import com.example.staff.permission.AccountFactory
+import com.example.staff.permission.UserAccount
 import com.example.staff.resolver.UserResolver
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -17,6 +19,7 @@ import org.jetbrains.exposed.sql.insertAndGetId
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.assertThrows
+import org.springframework.context.annotation.Lazy
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 
@@ -30,7 +33,10 @@ class UserControllerTests {
         @Autowired
         private val mockMvc: MockMvc? = null
 
-        fun addPermission() {
+        @Autowired
+        private val  accountFactory: AccountFactory? = null
+
+        fun addPermission(): String {
             GroupEntity.deleteAll()
 
             GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
@@ -40,17 +46,22 @@ class UserControllerTests {
                 it[entity] = EntityType.USER
                 it[group] = EntityID(777, GroupEntity)
             }
+
+            return accountFactory?.createToken(UserAccount(id = 1, groups = listOf(777))) ?: ""
         }
 
         @Test
         fun `Should get empty list`() {
-            transaction {
+            val token = transaction {
                 UserEntity.deleteAll()
                 addPermission()
             }
 
             mockMvc
-                ?.perform(get("/user"))
+                ?.perform(
+                    get("/user")
+                        .header("authorization", token)
+                )
                 ?.andExpect(status().isOk)
                 ?.andExpect {
                     val list = Gson().fromJson(it.response.contentAsString, Array<UserResolver>::class.java)
@@ -72,23 +83,22 @@ class UserControllerTests {
 
         @Test
         fun `Should get user with group`() {
-            transaction {
+            val token = transaction {
                 UserEntity.deleteAll()
-                GroupEntity.deleteAll()
 
-                addPermission()
+                addPermission().also {
+                    val userId = UserEntity.insertAndGetId { it[login] = "user_name" }
+                    val groupId = GroupEntity.insertAndGetId { it[id] = EntityID(22, GroupEntity) }
 
-                val userId = UserEntity.insertAndGetId { it[login] = "user_name" }
-                val groupId = GroupEntity.insertAndGetId { it[id] = EntityID(22, GroupEntity) }
-
-                User2GroupEntity.insert {
-                    it[user] = userId
-                    it[group] = groupId
+                    User2GroupEntity.insert {
+                        it[user] = userId
+                        it[group] = groupId
+                    }
                 }
             }
 
             mockMvc
-                ?.perform(get("/user"))
+                ?.perform(get("/user").header("authorization", token))
                 ?.andExpect(status().isOk)
                 ?.andExpect {
                     val list = Gson().fromJson(it.response.contentAsString, Array<UserResolver>::class.java)
@@ -101,31 +111,30 @@ class UserControllerTests {
 
         @Test
         fun `Should get user list with groups`() {
-            transaction {
+            val token = transaction {
                 UserEntity.deleteAll()
-                GroupEntity.deleteAll()
 
-                addPermission()
+                addPermission().also {
+                    val group1 = GroupEntity.insertAndGetId { it[id] = EntityID(1, GroupEntity) }
+                    val group2 = GroupEntity.insertAndGetId { it[id] = EntityID(2, GroupEntity) }
 
-                val group1 = GroupEntity.insertAndGetId { it[id] = EntityID(1, GroupEntity) }
-                val group2 = GroupEntity.insertAndGetId { it[id] = EntityID(2, GroupEntity) }
+                    for (i in 1..100) {
+                        val userId = UserEntity.insertAndGetId { it[login] = "user_name_${i}" }
 
-                for (i in 1..100) {
-                    val userId = UserEntity.insertAndGetId { it[login] = "user_name_${i}" }
-
-                    User2GroupEntity.insert {
-                        it[user] = userId
-                        it[group] = group1
-                    }
-                    User2GroupEntity.insert {
-                        it[user] = userId
-                        it[group] = group2
+                        User2GroupEntity.insert {
+                            it[user] = userId
+                            it[group] = group1
+                        }
+                        User2GroupEntity.insert {
+                            it[user] = userId
+                            it[group] = group2
+                        }
                     }
                 }
             }
 
             mockMvc
-                ?.perform(get("/user"))
+                ?.perform(get("/user").header("authorization", token))
                 ?.andExpect(status().isOk)
                 ?.andExpect {
                     val list = Gson().fromJson(it.response.contentAsString, Array<UserResolver>::class.java)
@@ -142,7 +151,10 @@ class UserControllerTests {
         @Autowired
         private val mockMvc: MockMvc? = null
 
-        fun addPermission() {
+        @Autowired
+        private val  accountFactory: AccountFactory? = null
+
+        fun addPermission(): String {
             GroupEntity.deleteAll()
 
             GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
@@ -152,11 +164,13 @@ class UserControllerTests {
                 it[entity] = EntityType.USER
                 it[group] = EntityID(777, GroupEntity)
             }
+
+            return accountFactory?.createToken(UserAccount(id = 1, groups = listOf(777))) ?: ""
         }
 
         @Test
         fun `Should post item`() {
-            transaction {
+            val token = transaction {
                 UserEntity.deleteAll()
                 addPermission()
             }
@@ -166,6 +180,7 @@ class UserControllerTests {
                     post("/user")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"login":"root_admin"}""")
+                        .header("authorization", token)
                 )
                 ?.andExpect(status().isOk)
                 ?.andExpect {
@@ -192,11 +207,11 @@ class UserControllerTests {
 
         @Test
         fun `Should post with group`() {
-            transaction {
+            val token = transaction {
                 UserEntity.deleteAll()
-                addPermission()
-
-                GroupEntity.insert { it[GroupEntity.id] = EntityID(33, GroupEntity) }
+                addPermission().also {
+                    GroupEntity.insert { it[GroupEntity.id] = EntityID(33, GroupEntity) }
+                }
             }
 
             mockMvc
@@ -204,6 +219,7 @@ class UserControllerTests {
                     post("/user")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"login":"root_admin", "group": [33]}""")
+                        .header("authorization", token)
                 )
                 ?.andExpect(status().isOk)
                 ?.andExpect {
@@ -220,7 +236,10 @@ class UserControllerTests {
         @Autowired
         private val mockMvc: MockMvc? = null
 
-        fun addPermission() {
+        @Autowired
+        private val  accountFactory: AccountFactory? = null
+
+        fun addPermission(): String {
             GroupEntity.deleteAll()
 
             GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
@@ -230,17 +249,19 @@ class UserControllerTests {
                 it[entity] = EntityType.USER
                 it[group] = EntityID(777, GroupEntity)
             }
+
+            return accountFactory?.createToken(UserAccount(id = 1, groups = listOf(777))) ?: ""
         }
 
         @Test
         fun `Should put user`() {
-            transaction {
+            val token = transaction {
                 UserEntity.deleteAll()
-                addPermission()
-
-                UserEntity.insert {
-                    it[id] = EntityID(1, UserEntity)
-                    it[login] = "OLD_NAME"
+                addPermission().also {
+                    UserEntity.insert {
+                        it[id] = EntityID(1, UserEntity)
+                        it[login] = "OLD_NAME"
+                    }
                 }
             }
 
@@ -249,6 +270,7 @@ class UserControllerTests {
                     put("/user")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"id":1, "login":"NEW_NAME"}""")
+                        .header("authorization", token)
                 )
                 ?.andExpect(status().isOk)
                 ?.andExpect {
@@ -259,15 +281,15 @@ class UserControllerTests {
 
         @Test
         fun `Should add group to user`() {
-            transaction {
+            val token = transaction {
                 UserEntity.deleteAll()
-                addPermission()
-
-                UserEntity.insert {
-                    it[id] = EntityID(1, UserEntity)
-                    it[login] = "OLD_NAME"
+                addPermission().also {
+                    UserEntity.insert {
+                        it[id] = EntityID(1, UserEntity)
+                        it[login] = "OLD_NAME"
+                    }
+                    GroupEntity.insert { it[id] = EntityID(33, UserEntity) }
                 }
-                GroupEntity.insert { it[id] = EntityID(33, UserEntity) }
             }
 
             mockMvc
@@ -275,6 +297,7 @@ class UserControllerTests {
                     put("/user")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"id":1, "login":"NEW_NAME", "group": [33]}""")
+                        .header("authorization", token)
                 )
                 ?.andExpect(status().isOk)
                 ?.andExpect {
@@ -286,18 +309,18 @@ class UserControllerTests {
 
         @Test
         fun `Should remove group from user`() {
-            transaction {
+            val token = transaction {
                 UserEntity.deleteAll()
-                addPermission()
-
-                UserEntity.insert {
-                    it[id] = EntityID(1, UserEntity)
-                    it[login] = "OLD_NAME"
-                }
-                GroupEntity.insert { it[id] = EntityID(33, UserEntity) }
-                User2GroupEntity.insert {
-                    it[group] = EntityID(33, GroupEntity)
-                    it[user] = EntityID(1, UserEntity)
+                addPermission().also {
+                    UserEntity.insert {
+                        it[id] = EntityID(1, UserEntity)
+                        it[login] = "OLD_NAME"
+                    }
+                    GroupEntity.insert { it[id] = EntityID(33, UserEntity) }
+                    User2GroupEntity.insert {
+                        it[group] = EntityID(33, GroupEntity)
+                        it[user] = EntityID(1, UserEntity)
+                    }
                 }
             }
 
@@ -306,6 +329,7 @@ class UserControllerTests {
                     put("/user")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"id":1, "login":"NEW_NAME", "group": []}""")
+                        .header("authorization", token)
                 )
                 ?.andExpect(status().isOk)
                 ?.andExpect {
@@ -316,19 +340,19 @@ class UserControllerTests {
 
         @Test
         fun `Should change group from user`() {
-            transaction {
+            val token = transaction {
                 UserEntity.deleteAll()
-                addPermission()
-
-                UserEntity.insert {
-                    it[id] = EntityID(1, UserEntity)
-                    it[login] = "OLD_NAME"
-                }
-                GroupEntity.insert { it[id] = EntityID(33, UserEntity) }
-                GroupEntity.insert { it[id] = EntityID(44, UserEntity) }
-                User2GroupEntity.insert {
-                    it[group] = EntityID(33, GroupEntity)
-                    it[user] = EntityID(1, UserEntity)
+                addPermission().also {
+                    UserEntity.insert {
+                        it[id] = EntityID(1, UserEntity)
+                        it[login] = "OLD_NAME"
+                    }
+                    GroupEntity.insert { it[id] = EntityID(33, UserEntity) }
+                    GroupEntity.insert { it[id] = EntityID(44, UserEntity) }
+                    User2GroupEntity.insert {
+                        it[group] = EntityID(33, GroupEntity)
+                        it[user] = EntityID(1, UserEntity)
+                    }
                 }
             }
 
@@ -337,6 +361,7 @@ class UserControllerTests {
                     put("/user")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"id":1, "login":"NEW_NAME", "group": [44]}""")
+                        .header("authorization", token)
                 )
                 ?.andExpect(status().isOk)
                 ?.andExpect {
@@ -348,16 +373,17 @@ class UserControllerTests {
 
         @Test
         fun `Shouldn't put item with wrong id`() {
-            transaction {
+            val token = transaction {
                 UserEntity.deleteAll()
                 addPermission()
             }
 
-            Assertions.assertThrows(Exception::class.java) {
+            assertThrows<Exception> {
                 mockMvc?.perform(
                     put("/user")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"id":1, "login":"NEW_NAME"}""")
+                        .header("authorization", token)
                 )
             }
         }
@@ -369,7 +395,10 @@ class UserControllerTests {
         @Autowired
         private val mockMvc: MockMvc? = null
 
-        fun addPermission() {
+        @Autowired
+        private val  accountFactory: AccountFactory? = null
+
+        fun addPermission(): String {
             GroupEntity.deleteAll()
 
             GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
@@ -379,23 +408,25 @@ class UserControllerTests {
                 it[entity] = EntityType.USER
                 it[group] = EntityID(777, GroupEntity)
             }
+
+            return accountFactory?.createToken(UserAccount(id = 1, groups = listOf(777))) ?: ""
         }
 
         @Test
         fun `Should delete item`() {
-            transaction {
+            val token = transaction {
                 UserEntity.deleteAll()
-                addPermission()
-
-                UserEntity.insert {
-                    it[id] = EntityID(1, UserEntity)
-                    it[login] = "OLD_NAME"
+                addPermission().also {
+                    UserEntity.insert {
+                        it[id] = EntityID(1, UserEntity)
+                        it[login] = "OLD_NAME"
+                    }
                 }
             }
 
             mockMvc
                 ?.perform(
-                    delete("/user?id=1")
+                    delete("/user?id=1").header("authorization", token)
                 )
                 ?.andExpect(status().isOk)
                 ?.andExpect {
@@ -418,13 +449,13 @@ class UserControllerTests {
 
         @Test
         fun `Shouldn't delete item with wrong id`() {
-            transaction {
+            val token = transaction {
                 UserEntity.deleteAll()
                 addPermission()
             }
 
-            Assertions.assertThrows(Exception::class.java) {
-                mockMvc?.perform(delete("/user?id=1"))
+            assertThrows<Exception> {
+                mockMvc?.perform(delete("/user?id=1").header("authorization", token))
             }
         }
     }

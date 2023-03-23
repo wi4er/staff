@@ -24,12 +24,16 @@ dependencies {
 	// Web
 	implementation("org.springframework.boot:spring-boot-starter")
 	implementation("org.springframework.boot:spring-boot-starter-web")
-	implementation("com.google.code.gson:gson:2.10")
+	implementation("com.google.code.gson:gson:2.10.1")
+
+	// Authorization
+	implementation("com.auth0:java-jwt:4.3.0")
+	implementation("com.auth0:jwks-rsa:0.22.0")
 
 	// Database
 	implementation("org.jetbrains.exposed:exposed:$exposedVersion")
-	implementation("org.flywaydb:flyway-core:9.15.2")
-	implementation("org.postgresql:postgresql:42.5.1")
+	implementation("org.flywaydb:flyway-core:9.16.0")
+	implementation("org.postgresql:postgresql:42.5.4")
 	implementation("com.zaxxer:HikariCP:5.0.1")
 
 	// Tests
