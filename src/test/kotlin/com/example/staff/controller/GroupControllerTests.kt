@@ -1,6 +1,11 @@
 package com.example.staff.controller
 
+import com.example.staff.model.EntityType
 import com.example.staff.model.GroupEntity
+import com.example.staff.model.MethodPermissionEntity
+import com.example.staff.model.MethodType
+import com.example.staff.permission.AccountFactory
+import com.example.staff.permission.UserAccount
 import com.example.staff.resolver.GroupResolver
 import com.google.gson.Gson
 import org.jetbrains.exposed.dao.EntityID
@@ -25,16 +30,56 @@ class GroupControllerTests {
     @Autowired
     private val mockMvc: MockMvc? = null
 
-    @Test
-    fun `Should get empty list`() {
-        transaction { GroupEntity.deleteAll() }
+    @SpringBootTest
+    @AutoConfigureMockMvc
+    class GroupControllerGetTests {
+        @Autowired
+        private val mockMvc: MockMvc? = null
 
-        mockMvc
-            ?.perform(get("/group"))
-            ?.andExpect(status().isOk)
-            ?.andExpect {
+        @Autowired
+        private val accountFactory: AccountFactory? = null
 
+        fun addPermission(): String {
+            GroupEntity.deleteAll()
+
+            GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
+
+            MethodPermissionEntity.insert {
+                it[method] = MethodType.GET
+                it[entity] = EntityType.GROUP
+                it[group] = EntityID(777, GroupEntity)
             }
+
+            return accountFactory?.createToken(UserAccount(id = 1, groups = listOf(777))) ?: ""
+        }
+
+        @Test
+        fun `Should get empty list`() {
+            val token = transaction {
+                GroupEntity.deleteAll()
+
+                addPermission()
+            }
+
+            mockMvc
+                ?.perform(get("/group").header("authorization", token))
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val list = Gson().fromJson(it.response.contentAsString, Array<GroupResolver>::class.java)
+                    Assertions.assertEquals(1, list.size)
+                }
+        }
+
+        @Test
+        fun `Shouldn't get without authorization`() {
+            transaction {
+                GroupEntity.deleteAll()
+            }
+
+            assertThrows<Exception> {
+                mockMvc?.perform(get("/group"))
+            }
+        }
     }
 
     @SpringBootTest
@@ -43,29 +88,51 @@ class GroupControllerTests {
         @Autowired
         private val mockMvc: MockMvc? = null
 
+        @Autowired
+        private val accountFactory: AccountFactory? = null
+
+        fun addPermission(): String {
+            GroupEntity.deleteAll()
+
+            GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
+
+            MethodPermissionEntity.insert {
+                it[method] = MethodType.POST
+                it[entity] = EntityType.GROUP
+                it[group] = EntityID(777, GroupEntity)
+            }
+
+            return accountFactory?.createToken(UserAccount(id = 1, groups = listOf(777))) ?: ""
+        }
+
         @Test
         fun `Should post item`() {
-            transaction { GroupEntity.deleteAll() }
+            val token = transaction {
+                GroupEntity.deleteAll()
+                addPermission()
+            }
 
             mockMvc
                 ?.perform(
                     post("/group")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""{"id":1}""")
+                        .content("""{"id":22}""")
+                        .header("authorization", token)
                 )
                 ?.andExpect(status().isOk)
                 ?.andExpect {
                     val item = Gson().fromJson(it.response.contentAsString, GroupResolver::class.java)
-
-                    Assertions.assertEquals(1, item.id)
+                    Assertions.assertEquals(22, item.id)
                 }
         }
 
         @Test
         fun `Should post with parent`() {
-            transaction {
+            val token = transaction {
                 GroupEntity.deleteAll()
-                GroupEntity.insert { it[id] = EntityID(111, GroupEntity) }
+                addPermission().also {
+                    GroupEntity.insert { it[id] = EntityID(111, GroupEntity) }
+                }
             }
 
             mockMvc
@@ -73,38 +140,41 @@ class GroupControllerTests {
                     post("/group")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"id":1, "parent": 111}""")
+                        .header("authorization", token)
                 )
                 ?.andExpect(status().isOk)
                 ?.andExpect {
                     val item = Gson().fromJson(it.response.contentAsString, GroupResolver::class.java)
-
                     Assertions.assertEquals(111, item.parent)
                 }
         }
 
         @Test
         fun `Shouldn't post with wrong parent`() {
-            transaction {
+            val token = transaction {
                 GroupEntity.deleteAll()
+                addPermission()
             }
 
             assertThrows<Exception> {
-                mockMvc
-                    ?.perform(
-                        post("/group")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("""{"id":1, "parent": 4444}""")
-                    )
+                mockMvc?.perform(
+                    post("/group")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"id":1, "parent": 4444}""")
+                        .header("authorization", token)
+                )
             }
         }
 
         @Test
         fun `Shouldn't post with duplicate id`() {
-            transaction {
+            val token = transaction {
                 GroupEntity.deleteAll()
 
-                GroupEntity.insert {
-                    it[GroupEntity.id] = EntityID(1, GroupEntity)
+                addPermission().also {
+                    GroupEntity.insert {
+                        it[GroupEntity.id] = EntityID(1, GroupEntity)
+                    }
                 }
             }
 
@@ -113,18 +183,23 @@ class GroupControllerTests {
                     post("/group")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"id":1}""")
+                        .header("authorization", token)
                 )
             }
         }
 
         @Test
         fun `Should post without id`() {
-            transaction { GroupEntity.deleteAll() }
+            val token = transaction {
+                GroupEntity.deleteAll()
+                addPermission()
+            }
 
             mockMvc?.perform(
                 post("/group")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("""{}""")
+                    .header("authorization", token)
             )
                 ?.andExpect(status().isOk)
                 ?.andExpect {
@@ -140,12 +215,30 @@ class GroupControllerTests {
         @Autowired
         private val mockMvc: MockMvc? = null
 
+        @Autowired
+        private val accountFactory: AccountFactory? = null
+
+        fun addPermission(): String {
+            GroupEntity.deleteAll()
+
+            GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
+
+            MethodPermissionEntity.insert {
+                it[method] = MethodType.PUT
+                it[entity] = EntityType.GROUP
+                it[group] = EntityID(777, GroupEntity)
+            }
+
+            return accountFactory?.createToken(UserAccount(id = 1, groups = listOf(777))) ?: ""
+        }
+
         @Test
         fun `Should add parent to item`() {
-            transaction {
-                GroupEntity.deleteAll()
-                GroupEntity.insert { it[id] = EntityID(1, GroupEntity) }
-                GroupEntity.insert { it[id] = EntityID(111, GroupEntity) }
+            val token = transaction {
+                addPermission().also {
+                    GroupEntity.insert { it[id] = EntityID(1, GroupEntity) }
+                    GroupEntity.insert { it[id] = EntityID(111, GroupEntity) }
+                }
             }
 
             mockMvc
@@ -153,6 +246,7 @@ class GroupControllerTests {
                     put("/group?id=1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"id":1, "parent": 111}""")
+                        .header("authorization", token)
                 )
                 ?.andExpect(status().isOk)
                 ?.andExpect {
@@ -164,12 +258,13 @@ class GroupControllerTests {
 
         @Test
         fun `Should remove parent from item`() {
-            transaction {
-                GroupEntity.deleteAll()
-                GroupEntity.insert { it[id] = EntityID(111, GroupEntity) }
-                GroupEntity.insert {
-                    it[id] = EntityID(1, GroupEntity)
-                    it[parent] = EntityID(111, GroupEntity)
+            val token = transaction {
+                addPermission().also {
+                    GroupEntity.insert { it[id] = EntityID(111, GroupEntity) }
+                    GroupEntity.insert {
+                        it[id] = EntityID(1, GroupEntity)
+                        it[parent] = EntityID(111, GroupEntity)
+                    }
                 }
             }
 
@@ -178,6 +273,7 @@ class GroupControllerTests {
                     put("/group?id=1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"id":1, "parent": null}""")
+                        .header("authorization", token)
                 )
                 ?.andExpect(status().isOk)
                 ?.andExpect {
@@ -188,28 +284,55 @@ class GroupControllerTests {
         }
     }
 
-    @Test
-    fun `Should delete item`() {
-        val id: Int = transaction {
+    @SpringBootTest
+    @AutoConfigureMockMvc
+    class GroupControllerDeleteTests {
+        @Autowired
+        private val mockMvc: MockMvc? = null
+
+        @Autowired
+        private val accountFactory: AccountFactory? = null
+
+        fun addPermission(): String {
             GroupEntity.deleteAll()
-            GroupEntity.insertAndGetId { }.value
+
+            GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
+
+            MethodPermissionEntity.insert {
+                it[method] = MethodType.DELETE
+                it[entity] = EntityType.GROUP
+                it[group] = EntityID(777, GroupEntity)
+            }
+
+            return accountFactory?.createToken(UserAccount(id = 1, groups = listOf(777))) ?: ""
         }
 
-        mockMvc?.perform(delete("/group?id=${id}"))
-            ?.andExpect(status().isOk)
-            ?.andExpect {
-                val item = Gson().fromJson(it.response.contentAsString, GroupResolver::class.java)
-
-                Assertions.assertEquals(id, item.id)
+        @Test
+        fun `Should delete item`() {
+            val token = transaction {
+                addPermission().also {
+                    GroupEntity.insert { it[id] = EntityID(123, GroupEntity) }
+                }
             }
-    }
 
-    @Test
-    fun `Shouldn't delete with wrong id`() {
-        transaction { GroupEntity.deleteAll() }
+            mockMvc?.perform(
+                delete("/group?id=123")
+                    .header("authorization", token)
+            )
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val item = Gson().fromJson(it.response.contentAsString, GroupResolver::class.java)
+                    Assertions.assertEquals(123, item.id)
+                }
+        }
 
-        assertThrows<Exception> {
-            mockMvc?.perform(delete("/group?id=77"))
+        @Test
+        fun `Shouldn't delete with wrong id`() {
+            transaction { GroupEntity.deleteAll() }
+
+            assertThrows<Exception> {
+                mockMvc?.perform(delete("/group?id=77"))
+            }
         }
     }
 }

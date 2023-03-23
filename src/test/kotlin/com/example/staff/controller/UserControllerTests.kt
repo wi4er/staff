@@ -58,10 +58,7 @@ class UserControllerTests {
             }
 
             mockMvc
-                ?.perform(
-                    get("/user")
-                        .header("authorization", token)
-                )
+                ?.perform(get("/user").header("authorization", token))
                 ?.andExpect(status().isOk)
                 ?.andExpect {
                     val list = Gson().fromJson(it.response.contentAsString, Array<UserResolver>::class.java)
