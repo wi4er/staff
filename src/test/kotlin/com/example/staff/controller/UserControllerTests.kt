@@ -1,6 +1,5 @@
 package com.example.staff.controller
 
-import com.example.staff.exception.PermissionException
 import com.example.staff.model.*
 import com.example.staff.permission.AccountFactory
 import com.example.staff.permission.UserAccount
@@ -19,7 +18,6 @@ import org.jetbrains.exposed.sql.insertAndGetId
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.assertThrows
-import org.springframework.context.annotation.Lazy
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 
@@ -34,7 +32,7 @@ class UserControllerTests {
         private val mockMvc: MockMvc? = null
 
         @Autowired
-        private val  accountFactory: AccountFactory? = null
+        private val accountFactory: AccountFactory? = null
 
         fun addPermission(): String {
             GroupEntity.deleteAll()
@@ -107,6 +105,35 @@ class UserControllerTests {
         }
 
         @Test
+        fun `Should get user with group filter`() {
+            val token = transaction {
+                UserEntity.deleteAll()
+
+                addPermission().also {
+                    val userId = UserEntity.insertAndGetId { it[login] = "user_name" }
+                    val groupId = GroupEntity.insertAndGetId { it[id] = EntityID(22, GroupEntity) }
+
+                    UserEntity.insertAndGetId { it[login] = "another_name" }
+
+                    User2GroupEntity.insert {
+                        it[user] = userId
+                        it[group] = groupId
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(get("/user?filter[group]=22").header("authorization", token))
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val list = Gson().fromJson(it.response.contentAsString, Array<UserResolver>::class.java)
+
+                    Assertions.assertEquals(1, list.size)
+                    Assertions.assertEquals("user_name", list.first().login)
+                }
+        }
+
+        @Test
         fun `Should get user list with groups`() {
             val token = transaction {
                 UserEntity.deleteAll()
@@ -149,7 +176,7 @@ class UserControllerTests {
         private val mockMvc: MockMvc? = null
 
         @Autowired
-        private val  accountFactory: AccountFactory? = null
+        private val accountFactory: AccountFactory? = null
 
         fun addPermission(): String {
             GroupEntity.deleteAll()
@@ -234,7 +261,7 @@ class UserControllerTests {
         private val mockMvc: MockMvc? = null
 
         @Autowired
-        private val  accountFactory: AccountFactory? = null
+        private val accountFactory: AccountFactory? = null
 
         fun addPermission(): String {
             GroupEntity.deleteAll()
@@ -393,7 +420,7 @@ class UserControllerTests {
         private val mockMvc: MockMvc? = null
 
         @Autowired
-        private val  accountFactory: AccountFactory? = null
+        private val accountFactory: AccountFactory? = null
 
         fun addPermission(): String {
             GroupEntity.deleteAll()

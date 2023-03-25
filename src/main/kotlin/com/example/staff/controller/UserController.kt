@@ -41,8 +41,15 @@ class UserController(
         }.values.toList()
     }
 
+    fun Query.toFilter(filter: Map<String, String>?): Query = also {
+        filter?.get("filter[group]")?.let { group ->
+            andWhere { User2GroupEntity.group eq group.toInt() }
+        }
+    }
+
     @GetMapping
     fun getList(
+        @RequestParam filter: Map<String, String>?,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): List<UserResolver> = transaction {
         val account: Account? = authorization?.let(accountFactory::createFromToken)
@@ -57,6 +64,7 @@ class UserController(
             UserEntity
                 .join(User2GroupEntity, JoinType.LEFT)
                 .selectAll()
+                .toFilter(filter)
                 .toResolver()
         } ?: throw PermissionException("Permission denied!")
     }
