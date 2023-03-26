@@ -65,6 +65,75 @@ class UserControllerTests {
         }
 
         @Test
+        fun `Should get full list`() {
+            val token = transaction {
+                UserEntity.deleteAll()
+
+                for (i in 1..10) {
+                    UserEntity.insert {
+                        it[id] = EntityID(i, UserEntity)
+                        it[login] = "user_${i}"
+                    }
+                }
+                addPermission()
+            }
+
+            mockMvc
+                ?.perform(get("/user").header("authorization", token))
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val list = Gson().fromJson(it.response.contentAsString, Array<UserResolver>::class.java)
+                    Assertions.assertEquals(10, list.size)
+                }
+        }
+
+        @Test
+        fun `Should get list with limit`() {
+            val token = transaction {
+                UserEntity.deleteAll()
+
+                for (i in 1..10) {
+                    UserEntity.insert {
+                        it[id] = EntityID(i, UserEntity)
+                        it[login] = "user_${i}"
+                    }
+                }
+                addPermission()
+            }
+
+            mockMvc
+                ?.perform(get("/user?limit=4").header("authorization", token))
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val list = Gson().fromJson(it.response.contentAsString, Array<UserResolver>::class.java)
+                    Assertions.assertEquals(4, list.size)
+                }
+        }
+
+        @Test
+        fun `Should get list with offset`() {
+            val token = transaction {
+                UserEntity.deleteAll()
+
+                for (i in 1..10) {
+                    UserEntity.insert {
+                        it[id] = EntityID(i, UserEntity)
+                        it[login] = "user_${i}"
+                    }
+                }
+                addPermission()
+            }
+
+            mockMvc
+                ?.perform(get("/user?offset=4").header("authorization", token))
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val list = Gson().fromJson(it.response.contentAsString, Array<UserResolver>::class.java)
+                    Assertions.assertEquals(6, list.size)
+                }
+        }
+
+        @Test
         fun `Shouldn't get without permission`() {
             transaction {
                 UserEntity.deleteAll()

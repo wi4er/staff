@@ -50,6 +50,8 @@ class UserController(
     @GetMapping
     fun getList(
         @RequestParam filter: Map<String, String>?,
+        @RequestParam limit: Int?,
+        @RequestParam offset: Int?,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): List<UserResolver> = transaction {
         val account: Account? = authorization?.let(accountFactory::createFromToken)
@@ -65,6 +67,7 @@ class UserController(
                 .join(User2GroupEntity, JoinType.LEFT)
                 .selectAll()
                 .toFilter(filter)
+                .also { it.limit(limit ?: Int.MAX_VALUE, offset ?: 0) }
                 .toResolver()
         } ?: throw PermissionException("Permission denied!")
     }
