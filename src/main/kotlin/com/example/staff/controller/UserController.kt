@@ -2,10 +2,7 @@ package com.example.staff.controller
 
 import com.example.staff.exception.PermissionException
 import com.example.staff.input.UserInput
-import com.example.staff.model.EntityType
-import com.example.staff.model.MethodType
-import com.example.staff.model.User2GroupEntity
-import com.example.staff.model.UserEntity
+import com.example.staff.model.*
 import com.example.staff.permission.Account
 import com.example.staff.permission.AccountFactory
 import com.example.staff.permission.MethodPermissionService
@@ -27,10 +24,12 @@ class UserController(
     fun Query.toResolver(): List<UserResolver> {
         return fold(mutableMapOf<Int, UserResolver>()) { acc, row ->
             acc[row[UserEntity.id].value]?.let {
-                it.group.add(row[User2GroupEntity.group].value)
+                row[User2GroupEntity.group]?.let { some ->
+                    it.group.add(some.value)
+                }
             } ?: run {
                 acc[row[UserEntity.id].value] = UserResolver(
-                    id = row[UserEntity.id].value,
+                    id = row[UserEntity.id]?.value ?: 0,
                     login = row[UserEntity.login],
                     group = row[User2GroupEntity.group]?.value?.let {
                         mutableListOf(it)
@@ -56,6 +55,8 @@ class UserController(
     ): List<UserResolver> = transaction {
         val account: Account? = authorization?.let(accountFactory::createFromToken)
 
+        addLogger(StdOutSqlLogger)
+
         account?.let {
             permissionService.check(
                 entity = EntityType.USER,
@@ -65,9 +66,17 @@ class UserController(
 
             UserEntity
                 .join(User2GroupEntity, JoinType.LEFT)
+                .join(UserPermissionEntity, JoinType.INNER) {
+                    UserEntity.id eq UserPermissionEntity.user and (
+                        UserPermissionEntity.group inList account.groups and (
+                            UserPermissionEntity.method eq MethodType.GET)
+                        )
+                }
+                .slice(UserEntity.id, UserEntity.login, User2GroupEntity.group)
                 .selectAll()
                 .toFilter(filter)
                 .also { it.limit(limit ?: Int.MAX_VALUE, offset ?: 0) }
+                .groupBy(UserEntity.id, User2GroupEntity.group)
                 .toResolver()
         } ?: throw PermissionException("Permission denied!")
     }

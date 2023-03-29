@@ -12,15 +12,12 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import com.google.gson.Gson
 import org.jetbrains.exposed.dao.EntityID
-import org.jetbrains.exposed.sql.deleteAll
-import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.insertAndGetId
+import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.assertThrows
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
-
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -69,13 +66,20 @@ class UserControllerTests {
             val token = transaction {
                 UserEntity.deleteAll()
 
-                for (i in 1..10) {
-                    UserEntity.insert {
-                        it[id] = EntityID(i, UserEntity)
-                        it[login] = "user_${i}"
+                addPermission().also {
+                    for (i in 1..10) {
+                        UserEntity.insert {
+                            it[id] = EntityID(i, UserEntity)
+                            it[login] = "user_${i}"
+                        }
+
+                        UserPermissionEntity.insert {
+                            it[user] = EntityID(i, UserEntity)
+                            it[method] = MethodType.GET
+                            it[group] = EntityID(777, GroupEntity)
+                        }
                     }
                 }
-                addPermission()
             }
 
             mockMvc
@@ -92,13 +96,20 @@ class UserControllerTests {
             val token = transaction {
                 UserEntity.deleteAll()
 
-                for (i in 1..10) {
-                    UserEntity.insert {
-                        it[id] = EntityID(i, UserEntity)
-                        it[login] = "user_${i}"
+                addPermission().also {
+                    for (i in 1..10) {
+                        UserEntity.insert {
+                            it[id] = EntityID(i, UserEntity)
+                            it[login] = "user_${i}"
+                        }
+
+                        UserPermissionEntity.insert {
+                            it[user] = EntityID(i, UserEntity)
+                            it[method] = MethodType.GET
+                            it[group] = EntityID(777, GroupEntity)
+                        }
                     }
                 }
-                addPermission()
             }
 
             mockMvc
@@ -115,13 +126,20 @@ class UserControllerTests {
             val token = transaction {
                 UserEntity.deleteAll()
 
-                for (i in 1..10) {
-                    UserEntity.insert {
-                        it[id] = EntityID(i, UserEntity)
-                        it[login] = "user_${i}"
+                addPermission().also {
+                    for (i in 1..10) {
+                        UserEntity.insert {
+                            it[id] = EntityID(i, UserEntity)
+                            it[login] = "user_${i}"
+                        }
+
+                        UserPermissionEntity.insert {
+                            it[user] = EntityID(i, UserEntity)
+                            it[method] = MethodType.GET
+                            it[group] = EntityID(777, GroupEntity)
+                        }
                     }
                 }
-                addPermission()
             }
 
             mockMvc
@@ -133,17 +151,6 @@ class UserControllerTests {
                 }
         }
 
-        @Test
-        fun `Shouldn't get without permission`() {
-            transaction {
-                UserEntity.deleteAll()
-                MethodPermissionEntity.deleteAll()
-            }
-
-            assertThrows<Exception> {
-                mockMvc?.perform(get("/user"))
-            }
-        }
 
         @Test
         fun `Should get user with group`() {
@@ -151,12 +158,21 @@ class UserControllerTests {
                 UserEntity.deleteAll()
 
                 addPermission().also {
-                    val userId = UserEntity.insertAndGetId { it[login] = "user_name" }
+                    val userId = UserEntity.insertAndGetId {
+                        it[id] = EntityID(333, UserEntity)
+                        it[login] = "user_name"
+                    }
                     val groupId = GroupEntity.insertAndGetId { it[id] = EntityID(22, GroupEntity) }
 
                     User2GroupEntity.insert {
                         it[user] = userId
                         it[group] = groupId
+                    }
+
+                    UserPermissionEntity.insert {
+                        it[user] = EntityID(333, UserEntity)
+                        it[method] = MethodType.GET
+                        it[group] = EntityID(777, GroupEntity)
                     }
                 }
             }
@@ -179,14 +195,22 @@ class UserControllerTests {
                 UserEntity.deleteAll()
 
                 addPermission().also {
-                    val userId = UserEntity.insertAndGetId { it[login] = "user_name" }
+                    val userId = UserEntity.insertAndGetId {
+                        it[id] = EntityID(333, UserEntity)
+                        it[login] = "user_name"
+                    }
                     val groupId = GroupEntity.insertAndGetId { it[id] = EntityID(22, GroupEntity) }
 
-                    UserEntity.insertAndGetId { it[login] = "another_name" }
+                    UserEntity.insert { it[login] = "another_name" }
 
                     User2GroupEntity.insert {
                         it[user] = userId
                         it[group] = groupId
+                    }
+                    UserPermissionEntity.insert {
+                        it[user] = EntityID(333, UserEntity)
+                        it[method] = MethodType.GET
+                        it[group] = EntityID(777, GroupEntity)
                     }
                 }
             }
@@ -222,6 +246,11 @@ class UserControllerTests {
                             it[user] = userId
                             it[group] = group2
                         }
+                        UserPermissionEntity.insert {
+                            it[user] = userId
+                            it[method] = MethodType.GET
+                            it[group] = EntityID(777, GroupEntity)
+                        }
                     }
                 }
             }
@@ -235,6 +264,106 @@ class UserControllerTests {
                     Assertions.assertEquals(100, list.size)
                     Assertions.assertEquals(listOf(1, 2), list.first().group)
                 }
+        }
+    }
+
+    @SpringBootTest
+    @AutoConfigureMockMvc
+    class UserControllerPermissionGetTest {
+        @Autowired
+        private val mockMvc: MockMvc? = null
+
+        @Autowired
+        private val accountFactory: AccountFactory? = null
+
+        fun addPermission(): String {
+            GroupEntity.deleteAll()
+
+            GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
+
+            MethodPermissionEntity.insert {
+                it[method] = MethodType.GET
+                it[entity] = EntityType.USER
+                it[group] = EntityID(777, GroupEntity)
+            }
+
+            return accountFactory?.createToken(UserAccount(id = 1, groups = listOf(777))) ?: ""
+        }
+
+        @Test
+        fun `Should get list without permission`() {
+            val token = transaction {
+                UserEntity.deleteAll()
+
+                addPermission().also {
+                    for (i in 1..10) {
+                        UserEntity.insert {
+                            it[id] = EntityID(i, UserEntity)
+                            it[login] = "user_${i}"
+                        }
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(get("/user").header("authorization", token))
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val list = Gson().fromJson(it.response.contentAsString, Array<UserResolver>::class.java)
+                    Assertions.assertEquals(0, list.size)
+                }
+        }
+
+        @Test
+        fun `Should get list with partial permission`() {
+            transaction {
+                UserEntity.deleteAll()
+
+                addPermission().also {
+                    GroupEntity.insert { it[id] = EntityID(888, GroupEntity) }
+
+                    for (i in 1..10) {
+                        UserEntity.insert {
+                            it[id] = EntityID(i, UserEntity)
+                            it[login] = "user_${i}"
+                        }
+
+                        UserPermissionEntity.insert {
+                            it[user] = EntityID(i, UserEntity)
+                            it[method] = MethodType.GET
+                            it[group] = EntityID(888, GroupEntity)
+                        }
+
+                        UserPermissionEntity.insert {
+                            it[user] = EntityID(i, UserEntity)
+                            it[method] = MethodType.GET
+                            it[group] = EntityID(777, GroupEntity)
+                        }
+                    }
+                }
+            }
+
+            val token = accountFactory?.createToken(UserAccount(id = 1, groups = listOf(777, 888))) ?: ""
+
+            mockMvc
+                ?.perform(get("/user").header("authorization", token))
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val list = Gson().fromJson(it.response.contentAsString, Array<UserResolver>::class.java)
+                    Assertions.assertEquals(10, list.size)
+                }
+        }
+
+        @Test
+        fun `Shouldn't get without method permission`() {
+            transaction {
+                UserEntity.deleteAll()
+                MethodPermissionEntity.deleteAll()
+            }
+
+            assertThrows<Exception> {
+                mockMvc?.perform(get("/user"))
+            }
         }
     }
 
