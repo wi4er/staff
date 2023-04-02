@@ -3,9 +3,7 @@ package com.example.staff.controller
 import com.example.staff.exception.PermissionException
 import com.example.staff.input.UserInput
 import com.example.staff.model.*
-import com.example.staff.permission.Account
-import com.example.staff.permission.AccountFactory
-import com.example.staff.permission.MethodPermissionService
+import com.example.staff.permission.*
 import com.example.staff.resolver.UserResolver
 import com.example.staff.saver.user.UserSaver
 import org.jetbrains.exposed.dao.EntityID
@@ -21,32 +19,33 @@ class UserController(
     val accountFactory: AccountFactory,
     val permissionService: MethodPermissionService,
 ) {
-    fun Query.toResolver(): List<UserResolver> {
-        return fold(mutableMapOf<Int, UserResolver>()) { acc, row ->
-            acc[row[UserEntity.id].value]?.let {
-                row[User2GroupEntity.group]?.let { some ->
-                    it.group.add(some.value)
+    fun Query.toResolver(): List<UserResolver> = mutableMapOf<Int, UserResolver>().also { map ->
+        forEach {
+            map[it[UserEntity.id].value] = UserResolver(
+                id = it[UserEntity.id].value,
+                login = it[UserEntity.login],
+                group = mutableListOf(),
+            )
+        }
+
+        User2GroupEntity
+            .select { User2GroupEntity.user inList map.keys }
+            .forEach { group ->
+                map[group[User2GroupEntity.user].value]?.let {
+                    it.group.add(group[User2GroupEntity.group].value)
                 }
-            } ?: run {
-                acc[row[UserEntity.id].value] = UserResolver(
-                    id = row[UserEntity.id]?.value ?: 0,
-                    login = row[UserEntity.login],
-                    group = row[User2GroupEntity.group]?.value?.let {
-                        mutableListOf(it)
-                    } ?: mutableListOf(),
-                )
             }
-            acc
-        }.values.toList()
-    }
+    }.values.toList()
+
 
     fun Query.toFilter(filter: Map<String, String>?): Query = also {
-        filter?.get("filter[group]")?.let { group ->
-            andWhere { User2GroupEntity.group eq group.toInt() }
-        }
+//        filter?.get("filter[group]")?.let { group ->
+//            andWhere { User2GroupEntity.group eq group.toInt() }
+//        }
     }
 
     @GetMapping
+    @CrossOrigin
     fun getList(
         @RequestParam filter: Map<String, String>?,
         @RequestParam limit: Int?,
@@ -55,8 +54,6 @@ class UserController(
     ): List<UserResolver> = transaction {
         val account: Account? = authorization?.let(accountFactory::createFromToken)
 
-        addLogger(StdOutSqlLogger)
-
         account?.let {
             permissionService.check(
                 entity = EntityType.USER,
@@ -64,24 +61,28 @@ class UserController(
                 group = account.groups,
             )
 
+            addLogger(StdOutSqlLogger)
+
             UserEntity
-                .join(User2GroupEntity, JoinType.LEFT)
+//                .join(User2GroupEntity, JoinType.LEFT)
                 .join(UserPermissionEntity, JoinType.INNER) {
                     UserEntity.id eq UserPermissionEntity.user and (
                         UserPermissionEntity.group inList account.groups and (
                             UserPermissionEntity.method eq MethodType.GET)
                         )
                 }
-                .slice(UserEntity.id, UserEntity.login, User2GroupEntity.group)
+                .slice(UserEntity.id, UserEntity.login)
                 .selectAll()
                 .toFilter(filter)
                 .also { it.limit(limit ?: Int.MAX_VALUE, offset ?: 0) }
-                .groupBy(UserEntity.id, User2GroupEntity.group)
+                .groupBy(UserEntity.id)
+                .orderBy(UserEntity.login)
                 .toResolver()
         } ?: throw PermissionException("Permission denied!")
     }
 
     @PostMapping
+    @CrossOrigin
     fun addItem(
         @RequestBody input: UserInput,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
@@ -110,6 +111,7 @@ class UserController(
     }
 
     @PutMapping
+    @CrossOrigin
     fun updateItem(
         @RequestBody input: UserInput,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
@@ -140,6 +142,7 @@ class UserController(
     }
 
     @DeleteMapping
+    @CrossOrigin
     fun deleteItem(
         @RequestParam id: Int,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,

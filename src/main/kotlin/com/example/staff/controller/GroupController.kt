@@ -31,6 +31,7 @@ class GroupController(
     }
 
     @GetMapping
+    @CrossOrigin
     fun getList(
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): List<GroupResolver> = transaction {
@@ -48,6 +49,7 @@ class GroupController(
     }
 
     @PostMapping
+    @CrossOrigin
     fun addItem(
         @RequestBody input: GroupInput,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
@@ -76,6 +78,7 @@ class GroupController(
     }
 
     @PutMapping
+    @CrossOrigin
     fun updateItem(
         @RequestBody input: GroupInput,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
@@ -105,6 +108,7 @@ class GroupController(
     }
 
     @DeleteMapping
+    @CrossOrigin
     fun deleteItem(
         @RequestParam id: Int,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,

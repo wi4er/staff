@@ -13,6 +13,7 @@ enum class MethodType {
     POST,
     PUT,
     DELETE,
+    ALL,
 }
 
 object MethodPermissionEntity: IntIdTable(name = "permission_method") {
