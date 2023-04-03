@@ -1,5 +1,7 @@
 package com.example.staff.exception
 
-class PermissionException(message: String): Exception(message) {
+import org.springframework.http.HttpStatus
+import org.springframework.web.bind.annotation.ResponseStatus
 
-}
+@ResponseStatus(value = HttpStatus.FORBIDDEN)
+class PermissionException(message: String): Exception(message)

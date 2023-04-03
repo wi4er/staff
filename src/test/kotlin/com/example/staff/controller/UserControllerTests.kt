@@ -236,7 +236,10 @@ class UserControllerTests {
                     val group2 = GroupEntity.insertAndGetId { it[id] = EntityID(2, GroupEntity) }
 
                     for (i in 1..100) {
-                        val userId = UserEntity.insertAndGetId { it[login] = "user_name_${i}" }
+                        val userId = UserEntity.insertAndGetId {
+                            it[id] = EntityID(i, UserEntity)
+                            it[login] = "user_name_${i.toString().padStart(3, '0')}"
+                        }
 
                         User2GroupEntity.insert {
                             it[user] = userId
