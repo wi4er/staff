@@ -76,9 +76,9 @@ class GroupControllerTests {
                 GroupEntity.deleteAll()
             }
 
-            assertThrows<Exception> {
-                mockMvc?.perform(get("/group"))
-            }
+            mockMvc
+                ?.perform(get("/group"))
+                ?.andExpect(status().isForbidden)
         }
     }
 
@@ -330,9 +330,9 @@ class GroupControllerTests {
         fun `Shouldn't delete with wrong id`() {
             transaction { GroupEntity.deleteAll() }
 
-            assertThrows<Exception> {
-                mockMvc?.perform(delete("/group?id=77"))
-            }
+            mockMvc
+                ?.perform(delete("/group?id=77"))
+                ?.andExpect(status().isForbidden)
         }
     }
 }

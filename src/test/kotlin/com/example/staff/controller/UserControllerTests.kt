@@ -408,9 +408,9 @@ class UserControllerTests {
                 MethodPermissionEntity.deleteAll()
             }
 
-            assertThrows<Exception> {
-                mockMvc?.perform(get("/user"))
-            }
+            mockMvc
+                ?.perform(get("/user"))
+                ?.andExpect(status().isForbidden)
         }
     }
 
@@ -462,16 +462,15 @@ class UserControllerTests {
         fun `Shouldn't post without permission`() {
             transaction {
                 UserEntity.deleteAll()
-                GroupEntity.deleteAll()
             }
 
-            assertThrows<Exception> {
-                mockMvc?.perform(
+            mockMvc
+                ?.perform(
                     post("/user")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"login":"root_admin"}""")
                 )
-            }
+                ?.andExpect(status().isForbidden)
         }
 
         @Test
@@ -685,6 +684,35 @@ class UserControllerTests {
         fun `Should delete item`() {
             val token = transaction {
                 UserEntity.deleteAll()
+
+                addPermission().also {
+                    UserEntity.insert {
+                        it[id] = EntityID(1, UserEntity)
+                        it[login] = "OLD_NAME"
+                    }
+
+                    UserPermissionEntity.insert {
+                        it[user] = EntityID(1, UserEntity)
+                        it[method] = MethodType.DELETE
+                        it[group] = EntityID(777, UserEntity)
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(delete("/user?id=1").header("authorization", token))
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val item = Gson().fromJson(it.response.contentAsString, UserResolver::class.java)
+                    Assertions.assertEquals("OLD_NAME", item.login)
+                }
+        }
+
+        @Test
+        fun `Shouldn't delete without item permission`() {
+            val token = transaction {
+                UserEntity.deleteAll()
+
                 addPermission().also {
                     UserEntity.insert {
                         it[id] = EntityID(1, UserEntity)
@@ -694,26 +722,24 @@ class UserControllerTests {
             }
 
             mockMvc
-                ?.perform(
-                    delete("/user?id=1").header("authorization", token)
-                )
-                ?.andExpect(status().isOk)
-                ?.andExpect {
-                    val item = Gson().fromJson(it.response.contentAsString, UserResolver::class.java)
-                    Assertions.assertEquals("OLD_NAME", item.login)
-                }
+                ?.perform(delete("/user?id=1").header("authorization", token))
+                ?.andExpect(status().isNotFound)
         }
 
         @Test
-        fun `Shouldn't delete without permission`() {
-            transaction {
+        fun `Shouldn't delete without method permission`() {
+            val token = transaction {
                 UserEntity.deleteAll()
-                GroupEntity.deleteAll()
+
+                UserEntity.insert {
+                    it[id] = EntityID(1, UserEntity)
+                    it[login] = "OLD_NAME"
+                }
             }
 
-            assertThrows<Exception> {
-                mockMvc?.perform(delete("/user?id=1"))
-            }
+            mockMvc
+                ?.perform(delete("/user?id=1").header("authorization", token))
+                ?.andExpect(status().isForbidden)
         }
 
         @Test
@@ -723,9 +749,9 @@ class UserControllerTests {
                 addPermission()
             }
 
-            assertThrows<Exception> {
-                mockMvc?.perform(delete("/user?id=1").header("authorization", token))
-            }
+            mockMvc
+                ?.perform(delete("/user?id=1").header("authorization", token))
+                ?.andExpect(status().isNotFound)
         }
     }
 }

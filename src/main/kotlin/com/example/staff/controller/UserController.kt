@@ -1,5 +1,6 @@
 package com.example.staff.controller
 
+import com.example.staff.exception.NoDataException
 import com.example.staff.exception.PermissionException
 import com.example.staff.input.UserInput
 import com.example.staff.model.*
@@ -157,12 +158,17 @@ class UserController(
             )
 
             UserEntity
-                .join(User2GroupEntity, JoinType.LEFT)
+                .join(UserPermissionEntity, JoinType.INNER) {
+                    UserEntity.id eq UserPermissionEntity.user and (
+                        UserPermissionEntity.group inList account.groups and (
+                            UserPermissionEntity.method eq MethodType.DELETE)
+                        )
+                }
                 .select { UserEntity.id eq id }
                 .toResolver()
                 .firstOrNull()
                 ?.also { UserEntity.deleteWhere { UserEntity.id eq id } }
-                ?: throw Exception("Wrong user")
+                ?: throw NoDataException("Wrong user")
         } ?: throw PermissionException("Permission denied!")
     }
 }

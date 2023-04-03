@@ -1,6 +1,7 @@
 package com.example.staff.permission
 
 import com.auth0.jwt.interfaces.DecodedJWT
+import com.example.staff.exception.PermissionException
 import org.springframework.stereotype.Component
 
 @Component
@@ -27,7 +28,11 @@ class AccountFactory(
      * @param token - токен авторизации
      * @throws JWTDecodeException - исключение невалидного токена
      */
-    fun createFromToken(token: String): Account = tokenService.parse(token, ::decodeToken)
+    fun createFromToken(token: String): Account = try {
+        tokenService.parse(token, ::decodeToken)
+    } catch (ex: Exception) {
+        throw PermissionException("Wrong token")
+    }
 
     /**
      *
