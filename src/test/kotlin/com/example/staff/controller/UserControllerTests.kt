@@ -3,6 +3,7 @@ package com.example.staff.controller
 import com.example.staff.model.*
 import com.example.staff.permission.AccountFactory
 import com.example.staff.permission.EntityType
+import com.example.staff.permission.MethodType
 import com.example.staff.permission.UserAccount
 import com.example.staff.resolver.UserResolver
 import org.junit.jupiter.api.Test
@@ -152,7 +153,6 @@ class UserControllerTests {
                 }
         }
 
-
         @Test
         fun `Should get user with group`() {
             val token = transaction {
@@ -186,7 +186,50 @@ class UserControllerTests {
 
                     Assertions.assertEquals(1, list.size)
                     Assertions.assertEquals(1, list.first().group.size)
-                    Assertions.assertEquals(22, list.first().group.first())
+                    Assertions.assertEquals(listOf(22), list.first().group)
+                }
+        }
+
+        @Test
+        fun `Should get user with contact`() {
+            val token = transaction {
+                UserEntity.deleteAll()
+                ContactEntity.deleteAll()
+
+                addPermission().also {
+                    val userId = UserEntity.insertAndGetId {
+                        it[id] = EntityID(333, UserEntity)
+                        it[login] = "user_name"
+                    }
+                    val contactId = ContactEntity.insertAndGetId {
+                        it[id] = EntityID("mail", ContactEntity)
+                        it[type] = ContactType.EMAIL
+                    }
+
+                    User2ContactEntity.insert {
+                        it[user] = userId
+                        it[contact] = contactId
+                        it[value] = "my_mail@mail.com"
+                    }
+
+                    UserPermissionEntity.insert {
+                        it[user] = EntityID(333, UserEntity)
+                        it[method] = MethodType.GET
+                        it[group] = EntityID(777, GroupEntity)
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(get("/user").header("authorization", token))
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val list = Gson().fromJson(it.response.contentAsString, Array<UserResolver>::class.java)
+
+                    Assertions.assertEquals(1, list.size)
+                    Assertions.assertEquals(1, list.first().contact.size)
+                    Assertions.assertEquals("mail", list.first().contact.firstOrNull()?.contact)
+                    Assertions.assertEquals("my_mail@mail.com", list.first().contact.firstOrNull()?.value)
                 }
         }
 
@@ -495,6 +538,35 @@ class UserControllerTests {
                     val item = Gson().fromJson(it.response.contentAsString, UserResolver::class.java)
                     Assertions.assertEquals(1, item.group.size)
                     Assertions.assertEquals(33, item.group.first())
+                }
+        }
+
+        @Test
+        fun `Should post with contact`() {
+            val token = transaction {
+                UserEntity.deleteAll()
+                ContactEntity.deleteAll()
+
+                addPermission().also {
+                    ContactEntity.insert {
+                        it[id] = EntityID("mail", ContactEntity)
+                        it[type] = ContactType.EMAIL
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    post("/user")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"login":"root_admin", "contact": [{"contact":  "mail", "value": "mail@mail.com"}]}""")
+                        .header("authorization", token)
+                )
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val item = Gson().fromJson(it.response.contentAsString, UserResolver::class.java)
+                    Assertions.assertEquals(1, item.contact.size)
+                    Assertions.assertEquals("mail@mail.com", item.contact.first().value)
                 }
         }
     }

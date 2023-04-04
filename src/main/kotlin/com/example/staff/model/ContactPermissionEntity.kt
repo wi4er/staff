@@ -1,5 +1,6 @@
 package com.example.staff.model
 
+import com.example.staff.permission.MethodType
 import org.jetbrains.exposed.dao.IntIdTable
 
 object ContactPermissionEntity: IntIdTable(name = "user-contact-permission") {

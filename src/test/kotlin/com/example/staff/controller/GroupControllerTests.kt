@@ -2,9 +2,9 @@ package com.example.staff.controller
 
 import com.example.staff.model.GroupEntity
 import com.example.staff.model.MethodPermissionEntity
-import com.example.staff.model.MethodType
 import com.example.staff.permission.AccountFactory
 import com.example.staff.permission.EntityType
+import com.example.staff.permission.MethodType
 import com.example.staff.permission.UserAccount
 import com.example.staff.resolver.GroupResolver
 import com.google.gson.Gson

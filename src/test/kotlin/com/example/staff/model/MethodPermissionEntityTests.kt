@@ -1,6 +1,7 @@
 package com.example.staff.model
 
 import com.example.staff.permission.EntityType
+import com.example.staff.permission.MethodType
 import org.jetbrains.exposed.dao.EntityID
 import org.jetbrains.exposed.sql.deleteAll
 import org.jetbrains.exposed.sql.insert
@@ -11,7 +12,6 @@ import org.springframework.boot.test.context.SpringBootTest
 
 @SpringBootTest
 class MethodPermissionEntityTests {
-
     @Test
     fun `Should create permission`() {
         transaction {

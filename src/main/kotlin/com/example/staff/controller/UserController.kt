@@ -5,6 +5,7 @@ import com.example.staff.exception.PermissionException
 import com.example.staff.input.UserInput
 import com.example.staff.model.*
 import com.example.staff.permission.*
+import com.example.staff.resolver.UserContactResolver
 import com.example.staff.resolver.UserResolver
 import com.example.staff.saver.user.UserSaver
 import org.jetbrains.exposed.dao.EntityID
@@ -26,6 +27,7 @@ class UserController(
                 id = it[UserEntity.id].value,
                 login = it[UserEntity.login],
                 group = mutableListOf(),
+                contact = mutableListOf(),
             )
         }
 
@@ -34,6 +36,17 @@ class UserController(
             .forEach { group ->
                 map[group[User2GroupEntity.user].value]?.let {
                     it.group.add(group[User2GroupEntity.group].value)
+                }
+            }
+
+        User2ContactEntity
+            .select { User2ContactEntity.user inList map.keys}
+            .forEach { contact ->
+                map[contact[User2ContactEntity.user].value]?.let {
+                    it.contact.add(UserContactResolver(
+                        contact = contact[User2ContactEntity.contact].value,
+                        value = contact[User2ContactEntity.value],
+                    ))
                 }
             }
     }.values.toList()
@@ -65,7 +78,6 @@ class UserController(
             addLogger(StdOutSqlLogger)
 
             UserEntity
-//                .join(User2GroupEntity, JoinType.LEFT)
                 .join(UserPermissionEntity, JoinType.INNER) {
                     UserEntity.id eq UserPermissionEntity.user and (
                         UserPermissionEntity.group inList account.groups and (

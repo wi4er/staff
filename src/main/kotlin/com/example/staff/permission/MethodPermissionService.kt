@@ -2,7 +2,6 @@ package com.example.staff.permission
 
 import com.example.staff.exception.PermissionException
 import com.example.staff.model.MethodPermissionEntity
-import com.example.staff.model.MethodType
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.select
 import org.springframework.stereotype.Component
