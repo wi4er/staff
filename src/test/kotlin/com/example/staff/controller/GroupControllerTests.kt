@@ -1,17 +1,16 @@
 package com.example.staff.controller
 
-import com.example.staff.model.EntityType
 import com.example.staff.model.GroupEntity
 import com.example.staff.model.MethodPermissionEntity
 import com.example.staff.model.MethodType
 import com.example.staff.permission.AccountFactory
+import com.example.staff.permission.EntityType
 import com.example.staff.permission.UserAccount
 import com.example.staff.resolver.GroupResolver
 import com.google.gson.Gson
 import org.jetbrains.exposed.dao.EntityID
 import org.jetbrains.exposed.sql.deleteAll
 import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.insertAndGetId
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
@@ -25,11 +24,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.*
 
 @SpringBootTest
-@AutoConfigureMockMvc
 class GroupControllerTests {
-    @Autowired
-    private val mockMvc: MockMvc? = null
-
     @SpringBootTest
     @AutoConfigureMockMvc
     class GroupControllerGetTests {

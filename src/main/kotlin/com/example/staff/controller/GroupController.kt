@@ -2,11 +2,11 @@ package com.example.staff.controller
 
 import com.example.staff.exception.PermissionException
 import com.example.staff.input.GroupInput
-import com.example.staff.model.EntityType
 import com.example.staff.model.GroupEntity
 import com.example.staff.model.MethodType
 import com.example.staff.permission.Account
 import com.example.staff.permission.AccountFactory
+import com.example.staff.permission.EntityType
 import com.example.staff.permission.MethodPermissionService
 import com.example.staff.resolver.GroupResolver
 import org.jetbrains.exposed.dao.EntityID

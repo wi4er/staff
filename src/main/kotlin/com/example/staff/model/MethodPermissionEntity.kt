@@ -1,12 +1,7 @@
 package com.example.staff.model
 
+import com.example.staff.permission.EntityType
 import org.jetbrains.exposed.dao.IntIdTable
-
-
-enum class EntityType {
-    USER,
-    GROUP,
-}
 
 enum class MethodType {
     GET,

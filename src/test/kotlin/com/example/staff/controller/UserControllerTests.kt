@@ -2,6 +2,7 @@ package com.example.staff.controller
 
 import com.example.staff.model.*
 import com.example.staff.permission.AccountFactory
+import com.example.staff.permission.EntityType
 import com.example.staff.permission.UserAccount
 import com.example.staff.resolver.UserResolver
 import org.junit.jupiter.api.Test
