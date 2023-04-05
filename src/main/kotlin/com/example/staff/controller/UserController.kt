@@ -12,7 +12,9 @@ import org.jetbrains.exposed.dao.EntityID
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.springframework.http.HttpHeaders
+import org.springframework.http.server.ServerHttpResponse
 import org.springframework.web.bind.annotation.*
+import javax.servlet.http.HttpServletResponse
 
 @RestController
 @RequestMapping("/user")
@@ -40,13 +42,15 @@ class UserController(
             }
 
         User2ContactEntity
-            .select { User2ContactEntity.user inList map.keys}
+            .select { User2ContactEntity.user inList map.keys }
             .forEach { contact ->
                 map[contact[User2ContactEntity.user].value]?.let {
-                    it.contact.add(UserContactResolver(
-                        contact = contact[User2ContactEntity.contact].value,
-                        value = contact[User2ContactEntity.value],
-                    ))
+                    it.contact.add(
+                        UserContactResolver(
+                            contact = contact[User2ContactEntity.contact].value,
+                            value = contact[User2ContactEntity.value],
+                        )
+                    )
                 }
             }
     }.values.toList()
@@ -65,6 +69,7 @@ class UserController(
         @RequestParam limit: Int?,
         @RequestParam offset: Int?,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
+        response: HttpServletResponse,
     ): List<UserResolver> = transaction {
         val account: Account? = authorization?.let(accountFactory::createFromToken)
 
@@ -75,14 +80,27 @@ class UserController(
                 group = account.groups,
             )
 
-            addLogger(StdOutSqlLogger)
+            val count: Int = UserEntity
+                .join(UserPermissionEntity, JoinType.INNER) {
+                    UserEntity.id eq UserPermissionEntity.user and (
+                    UserPermissionEntity.group inList account.groups
+                    ) and (
+                    UserPermissionEntity.method eq MethodType.GET
+                    )
+                }
+                .selectAll()
+                .toFilter(filter)
+                .count()
+
+            response.addIntHeader("Content-Size", count)
 
             UserEntity
                 .join(UserPermissionEntity, JoinType.INNER) {
                     UserEntity.id eq UserPermissionEntity.user and (
-                        UserPermissionEntity.group inList account.groups and (
-                            UserPermissionEntity.method eq MethodType.GET)
-                        )
+                    UserPermissionEntity.group inList account.groups
+                    ) and (
+                    UserPermissionEntity.method eq MethodType.GET
+                    )
                 }
                 .slice(UserEntity.id, UserEntity.login)
                 .selectAll()
@@ -172,9 +190,9 @@ class UserController(
             UserEntity
                 .join(UserPermissionEntity, JoinType.INNER) {
                     UserEntity.id eq UserPermissionEntity.user and (
-                        UserPermissionEntity.group inList account.groups and (
-                            UserPermissionEntity.method eq MethodType.DELETE)
-                        )
+                    UserPermissionEntity.group inList account.groups and (
+                    UserPermissionEntity.method eq MethodType.DELETE)
+                    )
                 }
                 .select { UserEntity.id eq id }
                 .toResolver()

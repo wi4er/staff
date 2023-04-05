@@ -14,3 +14,6 @@ create table public.user2contact
             on delete cascade,
     value   varchar(100) not null
 );
+
+create unique index user2contact_contact_value_uindex
+    on public.user2contact (contact, value);

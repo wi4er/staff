@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.assertThrows
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -91,6 +92,33 @@ class UserControllerTests {
                     val list = Gson().fromJson(it.response.contentAsString, Array<UserResolver>::class.java)
                     Assertions.assertEquals(10, list.size)
                 }
+        }
+
+        @Test
+        fun `Should get list count`() {
+            val token = transaction {
+                UserEntity.deleteAll()
+
+                addPermission().also {
+                    for (i in 1..10) {
+                        UserEntity.insert {
+                            it[id] = EntityID(i, UserEntity)
+                            it[login] = "user_${i}"
+                        }
+
+                        UserPermissionEntity.insert {
+                            it[user] = EntityID(i, UserEntity)
+                            it[method] = MethodType.GET
+                            it[group] = EntityID(777, GroupEntity)
+                        }
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(get("/user").header("authorization", token))
+                ?.andExpect(status().isOk)
+                ?.andExpect(header().string("Content-Size", "10"))
         }
 
         @Test
