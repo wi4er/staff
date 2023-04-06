@@ -12,7 +12,6 @@ import org.jetbrains.exposed.dao.EntityID
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.springframework.http.HttpHeaders
-import org.springframework.http.server.ServerHttpResponse
 import org.springframework.web.bind.annotation.*
 import javax.servlet.http.HttpServletResponse
 
@@ -93,6 +92,7 @@ class UserController(
                 .count()
 
             response.addIntHeader("Content-Size", count)
+            response.addHeader("Access-Control-Expose-Headers", "Content-Size")
 
             UserEntity
                 .join(UserPermissionEntity, JoinType.INNER) {
@@ -127,17 +127,14 @@ class UserController(
                 group = account.groups,
             )
 
-            UserEntity.insertAndGetId {
-                it[login] = input.login
-            }.also { id ->
-                saver.forEach { it.save(id, input) }
-            }.let { id ->
-                UserEntity
-                    .join(User2GroupEntity, JoinType.LEFT)
-                    .select { UserEntity.id eq id }
-                    .toResolver()
-                    .firstOrNull()
-            } ?: throw Exception("Wrong user")
+            UserEntity.insertAndGetId { it[login] = input.login }
+                .also { id -> saver.forEach { it.save(id, input) } }
+                .let { id ->
+                    UserEntity
+                        .select { UserEntity.id eq id }
+                        .toResolver()
+                        .firstOrNull()
+                } ?: throw Exception("Wrong user")
         } ?: throw PermissionException("Permission denied!")
     }
 
@@ -146,7 +143,7 @@ class UserController(
     fun updateItem(
         @RequestBody input: UserInput,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
-    ) = transaction {
+    ): UserResolver = transaction {
         val account: Account? = authorization?.let(accountFactory::createFromToken)
 
         account?.let {
@@ -164,7 +161,6 @@ class UserController(
                 saver.forEach { it.save(EntityID(id, UserEntity), input) }
             }.let {
                 UserEntity
-                    .join(User2GroupEntity, JoinType.LEFT)
                     .select { UserEntity.id eq it }
                     .toResolver()
                     .firstOrNull()

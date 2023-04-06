@@ -1,6 +1,6 @@
 package com.example.staff.input
 
-class PermissionInput {
+class UserPermissionInput {
     val group: Int? = null
 }
 
@@ -14,5 +14,5 @@ class UserInput {
     var login: String = ""
     var group: List<Int> = listOf()
     var contact: List<UserContactInput> = listOf()
-    var permission: List<PermissionInput> = listOf()
+    var permission: List<UserPermissionInput> = listOf()
 }
