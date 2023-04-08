@@ -53,8 +53,6 @@ class PermissionControllerTests {
         fun `Should get empty list`() {
             val token = transaction {
                 MethodPermissionEntity.deleteAll()
-
-                SchemaUtils.create(MethodPermissionEntity)
                 addPermission()
             }
 

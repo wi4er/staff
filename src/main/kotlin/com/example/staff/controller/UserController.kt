@@ -2,6 +2,7 @@ package com.example.staff.controller
 
 import com.example.staff.exception.NoDataException
 import com.example.staff.exception.PermissionException
+import com.example.staff.exception.StaffException
 import com.example.staff.input.UserInput
 import com.example.staff.model.*
 import com.example.staff.permission.*
@@ -127,14 +128,18 @@ class UserController(
                 group = account.groups,
             )
 
-            UserEntity.insertAndGetId { it[login] = input.login }
-                .also { id -> saver.forEach { it.save(id, input) } }
-                .let { id ->
-                    UserEntity
-                        .select { UserEntity.id eq id }
-                        .toResolver()
-                        .firstOrNull()
-                } ?: throw Exception("Wrong user")
+            val id: EntityID<Int> = try {
+                UserEntity.insertAndGetId {
+                    it[login] = input.login
+                }.also { id -> saver.forEach { it.save(id, input) } }
+            } catch (ex: Exception) {
+                throw StaffException("Wrong user")
+            }
+
+            UserEntity
+                .select { UserEntity.id eq id }
+                .toResolver()
+                .firstOrNull()
         } ?: throw PermissionException("Permission denied!")
     }
 

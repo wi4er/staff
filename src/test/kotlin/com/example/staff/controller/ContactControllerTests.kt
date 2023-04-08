@@ -23,7 +23,6 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 
-@SpringBootTest
 class ContactControllerTests {
     @SpringBootTest
     @AutoConfigureMockMvc
@@ -98,7 +97,7 @@ class ContactControllerTests {
 
     @SpringBootTest
     @AutoConfigureMockMvc
-    class GroupControllerPermissionGetTests {
+    class ContactControllerPermissionGetTests {
         @Autowired
         private val mockMvc: MockMvc? = null
 
@@ -120,9 +119,22 @@ class ContactControllerTests {
         }
 
         @Test
+        fun `Shouldn't get without token`() {
+            transaction {
+                GroupEntity.deleteAll()
+            }
+
+            mockMvc
+                ?.perform(get("/contact"))
+                ?.andExpect(status().isForbidden)
+        }
+
+        @Test
         fun `Shouldn't get without method permission`() {
             val token = transaction {
                 GroupEntity.deleteAll()
+                GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
+                accountFactory?.createToken(UserAccount(id = 1, groups = listOf(777))) ?: ""
             }
 
             mockMvc
@@ -133,7 +145,7 @@ class ContactControllerTests {
 
     @SpringBootTest
     @AutoConfigureMockMvc
-    class GroupControllerPostTests {
+    class ContactControllerPostTests {
         @Autowired
         private val mockMvc: MockMvc? = null
 
@@ -190,6 +202,23 @@ class ContactControllerTests {
                         .header("authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"id":"email"}""")
+                )
+                ?.andExpect(status().isBadRequest)
+        }
+
+        @Test
+        fun `Shouldn't add without id`() {
+            val token = transaction {
+                ContactEntity.deleteAll()
+                addPermission()
+            }
+
+            mockMvc
+                ?.perform(
+                    post("/contact")
+                        .header("authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"type":"EMAIL"}""")
                 )
                 ?.andExpect(status().isBadRequest)
         }

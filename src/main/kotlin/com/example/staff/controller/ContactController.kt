@@ -35,19 +35,19 @@ class ContactController(
     fun getList(
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): List<ContactResolver> = transaction {
-        val account: Account? = authorization?.let(accountFactory::createFromToken)
+        authorization ?: throw PermissionException("Permission denied!")
 
-        account?.let {
-            permissionService.check(
-                entity = EntityType.CONTACT,
-                method = MethodType.GET,
-                group = account.groups,
-            )
+        val account: Account = authorization.let(accountFactory::createFromToken)
 
-            ContactEntity
-                .selectAll()
-                .toResolver()
-        } ?: throw PermissionException("Permission denied!")
+        permissionService.check(
+            entity = EntityType.CONTACT,
+            method = MethodType.GET,
+            group = account.groups,
+        )
+
+        ContactEntity
+            .selectAll()
+            .toResolver()
     }
 
     @PostMapping
@@ -56,29 +56,28 @@ class ContactController(
         @RequestBody input: ContactInput,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): ContactResolver = transaction {
-        val account: Account? = authorization?.let(accountFactory::createFromToken)
+        authorization ?: throw PermissionException("Permission denied!")
 
-        account?.let {
-            permissionService.check(
-                entity = EntityType.CONTACT,
-                method = MethodType.POST,
-                group = account.groups,
-            )
+        val account: Account = authorization.let(accountFactory::createFromToken)
 
-            val id: EntityID<String> = try {
-                ContactEntity.insertAndGetId {
-                    it[id] = EntityID(input.id, ContactEntity)
-                    input.type?.let { some -> it[type] = ContactType.valueOf(some) }
-                }
-            } catch (ex: Exception) {
-                throw StaffException("Wrong contact")
+        permissionService.check(
+            entity = EntityType.CONTACT,
+            method = MethodType.POST,
+            group = account.groups,
+        )
+
+        try {
+            val row = ContactEntity.insert {
+                it[id] = EntityID(input.id ?: throw StaffException("Wrong permission"), ContactEntity)
+                it[type] = ContactType.valueOf(input.type ?: throw StaffException("Wrong permission"))
             }
+                .resultedValues
+                ?: throw StaffException("Wrong Contact")
 
-            ContactEntity
-                .select { ContactEntity.id eq id }
-                .toResolver()
-                .firstOrNull()
-        } ?: throw PermissionException("Permission denied!")
+            ContactResolver.fromResult(row.first())
+        } catch (ex: Exception) {
+            throw StaffException("Wrong contact")
+        }
     }
 
     @PutMapping
@@ -87,36 +86,36 @@ class ContactController(
         @RequestBody input: ContactInput,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ) = transaction {
-        val account: Account? = authorization?.let(accountFactory::createFromToken)
+        authorization ?: throw PermissionException("Permission denied!")
 
-        account?.let {
-            permissionService.check(
-                entity = EntityType.CONTACT,
-                method = MethodType.PUT,
-                group = account.groups,
-            )
+        val account: Account = authorization.let(accountFactory::createFromToken)
 
+        permissionService.check(
+            entity = EntityType.CONTACT,
+            method = MethodType.PUT,
+            group = account.groups,
+        )
+
+        ContactEntity
+            .join(ContactPermissionEntity, JoinType.INNER) {
+                ContactEntity.id eq ContactPermissionEntity.contact and (
+                    ContactPermissionEntity.group inList account.groups and (
+                        ContactPermissionEntity.method eq MethodType.PUT))
+            }
+            .select { ContactEntity.id eq input.id }
+            .firstOrNull()
+            ?: throw PermissionException("Permission denied!")
+
+        ContactEntity.update(
+            where = { ContactEntity.id eq input.id }
+        ) {
+            input.type?.let { some -> it[type] = ContactType.valueOf(some) }
+        }.let {
             ContactEntity
-                .join(ContactPermissionEntity, JoinType.INNER) {
-                    ContactEntity.id eq ContactPermissionEntity.contact and (
-                        ContactPermissionEntity.group inList account.groups and (
-                            ContactPermissionEntity.method eq MethodType.PUT))
-                }
                 .select { ContactEntity.id eq input.id }
+                .toResolver()
                 .firstOrNull()
-                ?: throw PermissionException("Permission denied!")
-
-            ContactEntity.update(
-                where = { ContactEntity.id eq input.id }
-            ) {
-                input.type?.let { some -> it[type] = ContactType.valueOf(some) }
-            }.let {
-                ContactEntity
-                    .select { ContactEntity.id eq input.id }
-                    .toResolver()
-                    .firstOrNull()
-            } ?: throw NoDataException("Wrong contact")
-        } ?: throw PermissionException("Permission denied!")
+        } ?: throw NoDataException("Wrong contact")
     }
 
     @DeleteMapping
@@ -125,26 +124,26 @@ class ContactController(
         @RequestParam id: String,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): ContactResolver = transaction {
-        val account: Account? = authorization?.let(accountFactory::createFromToken)
+        authorization ?: throw PermissionException("Permission denied!")
 
-        account?.let {
-            permissionService.check(
-                entity = EntityType.CONTACT,
-                method = MethodType.DELETE,
-                group = account.groups,
-            )
+        val account: Account = authorization.let(accountFactory::createFromToken)
 
-            ContactEntity
-                .join(ContactPermissionEntity, JoinType.INNER) {
-                    ContactEntity.id eq ContactPermissionEntity.contact and (
-                        ContactPermissionEntity.group inList account.groups and (
-                            ContactPermissionEntity.method eq MethodType.DELETE))
-                }
-                .select { ContactEntity.id eq id }
-                .toResolver()
-                .firstOrNull()
-                ?.also { ContactEntity.deleteWhere { ContactEntity.id eq id } }
-                ?: throw NoDataException("Wrong contact")
-        } ?: throw PermissionException("Permission denied!")
+        permissionService.check(
+            entity = EntityType.CONTACT,
+            method = MethodType.DELETE,
+            group = account.groups,
+        )
+
+        ContactEntity
+            .join(ContactPermissionEntity, JoinType.INNER) {
+                ContactEntity.id eq ContactPermissionEntity.contact and (
+                    ContactPermissionEntity.group inList account.groups and (
+                        ContactPermissionEntity.method eq MethodType.DELETE))
+            }
+            .select { ContactEntity.id eq id }
+            .toResolver()
+            .firstOrNull()
+            ?.also { ContactEntity.deleteWhere { ContactEntity.id eq id } }
+            ?: throw NoDataException("Wrong contact")
     }
 }

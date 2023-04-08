@@ -22,8 +22,6 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 
-@SpringBootTest
-@AutoConfigureMockMvc
 class UserControllerTests {
     @SpringBootTest
     @AutoConfigureMockMvc
@@ -145,6 +143,7 @@ class UserControllerTests {
             mockMvc
                 ?.perform(get("/user?limit=4").header("authorization", token))
                 ?.andExpect(status().isOk)
+                ?.andExpect(header().string("Content-Size", "10"))
                 ?.andExpect {
                     val list = Gson().fromJson(it.response.contentAsString, Array<UserResolver>::class.java)
                     Assertions.assertEquals(4, list.size)
@@ -175,6 +174,7 @@ class UserControllerTests {
             mockMvc
                 ?.perform(get("/user?offset=4").header("authorization", token))
                 ?.andExpect(status().isOk)
+                ?.andExpect(header().string("Content-Size", "10"))
                 ?.andExpect {
                     val list = Gson().fromJson(it.response.contentAsString, Array<UserResolver>::class.java)
                     Assertions.assertEquals(6, list.size)
@@ -229,6 +229,7 @@ class UserControllerTests {
                         it[id] = EntityID(333, UserEntity)
                         it[login] = "user_name"
                     }
+
                     val contactId = ContactEntity.insertAndGetId {
                         it[id] = EntityID("mail", ContactEntity)
                         it[type] = ContactType.EMAIL
@@ -307,7 +308,7 @@ class UserControllerTests {
                     val group1 = GroupEntity.insertAndGetId { it[id] = EntityID(1, GroupEntity) }
                     val group2 = GroupEntity.insertAndGetId { it[id] = EntityID(2, GroupEntity) }
 
-                    for (i in 1..100) {
+                    for (i in 1..10) {
                         val userId = UserEntity.insertAndGetId {
                             it[id] = EntityID(i, UserEntity)
                             it[login] = "user_name_${i.toString().padStart(3, '0')}"
@@ -333,10 +334,11 @@ class UserControllerTests {
             mockMvc
                 ?.perform(get("/user").header("authorization", token))
                 ?.andExpect(status().isOk)
+                ?.andExpect(header().string("Content-Size", "10"))
                 ?.andExpect {
                     val list = Gson().fromJson(it.response.contentAsString, Array<UserResolver>::class.java)
 
-                    Assertions.assertEquals(100, list.size)
+                    Assertions.assertEquals(10, list.size)
                     Assertions.assertEquals(listOf(1, 2), list.first().group)
                 }
         }
@@ -376,6 +378,7 @@ class UserControllerTests {
             mockMvc
                 ?.perform(get("/user?limit=10").header("authorization", token))
                 ?.andExpect(status().isOk)
+                ?.andExpect(header().string("Content-Size", "20"))
                 ?.andExpect {
                     val list = Gson().fromJson(it.response.contentAsString, Array<UserResolver>::class.java)
 
@@ -531,7 +534,24 @@ class UserControllerTests {
         }
 
         @Test
-        fun `Shouldn't post without permission`() {
+        fun `Shouldn't post without login`() {
+            val token = transaction {
+                UserEntity.deleteAll()
+                addPermission()
+            }
+
+            mockMvc
+                ?.perform(
+                    post("/user")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{}""")
+                        .header("authorization", token)
+                )
+                ?.andExpect(status().isBadRequest)
+        }
+
+        @Test
+        fun `Shouldn't post without token`() {
             transaction {
                 UserEntity.deleteAll()
             }
@@ -541,6 +561,27 @@ class UserControllerTests {
                     post("/user")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"login":"root_admin"}""")
+                )
+                ?.andExpect(status().isForbidden)
+        }
+
+        @Test
+        fun `Shouldn't post without method permission`() {
+            val token = transaction {
+                UserEntity.deleteAll()
+                GroupEntity.deleteAll()
+
+                GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
+
+                accountFactory?.createToken(UserAccount(id = 1, groups = listOf(777))) ?: ""
+            }
+
+            mockMvc
+                ?.perform(
+                    post("/user")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"login":"root_admin"}""")
+                        .header("authorization", token)
                 )
                 ?.andExpect(status().isForbidden)
         }
@@ -593,8 +634,10 @@ class UserControllerTests {
                 ?.andExpect(status().isOk)
                 ?.andExpect {
                     val item = Gson().fromJson(it.response.contentAsString, UserResolver::class.java)
+
                     Assertions.assertEquals(1, item.contact.size)
                     Assertions.assertEquals("mail@mail.com", item.contact.first().value)
+                    Assertions.assertEquals("mail", item.contact.first().contact)
                 }
         }
     }
@@ -737,6 +780,80 @@ class UserControllerTests {
                     val item = Gson().fromJson(it.response.contentAsString, UserResolver::class.java)
                     Assertions.assertEquals(1, item.group.size)
                     Assertions.assertEquals(44, item.group.first())
+                }
+        }
+
+        @Test
+        fun `Should add contact to user`() {
+            val token = transaction {
+                UserEntity.deleteAll()
+                ContactEntity.deleteAll()
+
+                addPermission().also {
+                    UserEntity.insert {
+                        it[id] = EntityID(1, UserEntity)
+                        it[login] = "OLD_NAME"
+                    }
+                    ContactEntity.insert {
+                        it[id] = EntityID("mail", ContactEntity)
+                        it[type] = ContactType.EMAIL
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/user")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{
+                            |"id":1, 
+                            |"login":"NEW_NAME", 
+                            |"contact": [{"contact": "mail", "value": "mail@mail.com"}]
+                            |}""".trimMargin())
+                        .header("authorization", token)
+                )
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val item = Gson().fromJson(it.response.contentAsString, UserResolver::class.java)
+                    Assertions.assertEquals(1, item.contact.size)
+                    Assertions.assertEquals("mail@mail.com", item.contact.first().value)
+                }
+        }
+
+        @Test
+        fun `Should remove contact from user`() {
+            val token = transaction {
+                UserEntity.deleteAll()
+                ContactEntity.deleteAll()
+
+                addPermission().also {
+                    val userId = UserEntity.insertAndGetId {
+                        it[id] = EntityID(1, UserEntity)
+                        it[login] = "OLD_NAME"
+                    }
+                    val contactId = ContactEntity.insertAndGetId {
+                        it[id] = EntityID("mail", ContactEntity)
+                        it[type] = ContactType.EMAIL
+                    }
+                    User2ContactEntity.insert {
+                        it[contact] = contactId
+                        it[user] = userId
+                        it[value] = "mail@mail.com"
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/user")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"id":1, "login":"NEW_NAME","contact": []}""".trimMargin())
+                        .header("authorization", token)
+                )
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val item = Gson().fromJson(it.response.contentAsString, UserResolver::class.java)
+                    Assertions.assertEquals(0, item.contact.size)
                 }
         }
 
