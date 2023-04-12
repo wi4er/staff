@@ -53,6 +53,14 @@ class UserController(
                     )
                 }
             }
+
+        User2ProviderEntity
+            .select { User2ProviderEntity.user inList map.keys }
+            .forEach { row ->
+                map[row[User2ProviderEntity.user].value]?.let {
+                    it.provider[row[User2ProviderEntity.provider].value] = row[User2ProviderEntity.hash]
+                }
+            }
     }.values.toList()
 
 

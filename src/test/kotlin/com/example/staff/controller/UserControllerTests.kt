@@ -263,6 +263,48 @@ class UserControllerTests {
         }
 
         @Test
+        fun `Should get user with password`() {
+            val token = transaction {
+                UserEntity.deleteAll()
+                ProviderEntity.deleteAll()
+
+                addPermission().also {
+                    val userId = UserEntity.insertAndGetId {
+                        it[id] = EntityID(333, UserEntity)
+                        it[login] = "user_name"
+                    }
+
+                    val providerId = ProviderEntity.insertAndGetId {
+                        it[id] = EntityID("password", ContactEntity)
+                    }
+
+                    User2ProviderEntity.insert {
+                        it[user] = userId
+                        it[provider] = providerId
+                        it[hash] = "123"
+                    }
+
+                    UserPermissionEntity.insert {
+                        it[user] = EntityID(333, UserEntity)
+                        it[method] = MethodType.GET
+                        it[group] = EntityID(777, GroupEntity)
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(get("/user").header("authorization", token))
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val list = Gson().fromJson(it.response.contentAsString, Array<UserResolver>::class.java)
+
+                    Assertions.assertEquals(1, list.size)
+                    Assertions.assertEquals(1, list.first().provider.size)
+                    Assertions.assertEquals("123", list.first().provider.get("password"))
+                }
+        }
+
+        @Test
         fun `Should get user with group filter`() {
 //            val token = transaction {
 //                UserEntity.deleteAll()
