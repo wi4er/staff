@@ -6,6 +6,7 @@ enum class EntityType {
     CONTACT,
     PERMISSION,
     PROVIDER,
+    PROPERTY,
     PUBLIC,
     ADMIN,
 }
