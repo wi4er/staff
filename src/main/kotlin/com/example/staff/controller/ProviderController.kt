@@ -105,7 +105,7 @@ class ProviderController(
     fun updateItem(
         @RequestBody input: ProviderInput,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
-    ) = transaction {
+    ): ProviderResolver = transaction {
         authorization ?: throw PermissionException("Permission denied!")
 
         val account: Account = authorization.let(accountFactory::createFromToken)

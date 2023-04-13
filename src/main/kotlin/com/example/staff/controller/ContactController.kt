@@ -19,15 +19,11 @@ class ContactController(
     val accountFactory: AccountFactory,
     val permissionService: MethodPermissionService,
 ) {
-    fun Query.toResolver(): List<ContactResolver> {
-        println(this)
-
-        return map {
-            ContactResolver(
-                id = it[ContactEntity.id].value,
-                type = it[ContactEntity.type],
-            )
-        }
+    fun Query.toResolver(): List<ContactResolver> = map {
+        ContactResolver(
+            id = it[ContactEntity.id].value,
+            type = it[ContactEntity.type],
+        )
     }
 
     @GetMapping
@@ -85,7 +81,7 @@ class ContactController(
     fun updateItem(
         @RequestBody input: ContactInput,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
-    ) = transaction {
+    ): ContactResolver = transaction {
         authorization ?: throw PermissionException("Permission denied!")
 
         val account: Account = authorization.let(accountFactory::createFromToken)

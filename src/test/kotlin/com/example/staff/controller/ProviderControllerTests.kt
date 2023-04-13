@@ -82,7 +82,7 @@ class ProviderControllerTests {
         }
 
         @Test
-        fun `Should get empty list`() {
+        fun `Should post item`() {
             val token = transaction {
                 ProviderEntity.deleteAll()
                 addPermission()
@@ -96,6 +96,41 @@ class ProviderControllerTests {
                         .content("""{"id": "EMAIL"}""")
                 )
                 ?.andExpect(status().isOk)
+        }
+
+        @Test
+        fun `Shouldn't post without token`() {
+            transaction {
+                ProviderEntity.deleteAll()
+            }
+
+            mockMvc
+                ?.perform(
+                    post("/provider")
+                        .header("Content-Type", "application/json")
+                        .content("""{"id": "EMAIL"}""")
+                )
+                ?.andExpect(status().isForbidden)
+        }
+
+        @Test
+        fun `Shouldn't post without method permission`() {
+            val token = transaction {
+                ProviderEntity.deleteAll()
+                GroupEntity.deleteAll()
+                GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
+
+                accountFactory?.createToken(UserAccount(id = 1, groups = listOf(777))) ?: ""
+            }
+
+            mockMvc
+                ?.perform(
+                    post("/provider")
+                        .header("authorization", token)
+                        .header("Content-Type", "application/json")
+                        .content("""{"id": "EMAIL"}""")
+                )
+                ?.andExpect(status().isForbidden)
         }
     }
 
@@ -123,7 +158,7 @@ class ProviderControllerTests {
         }
 
         @Test
-        fun `Should get empty list`() {
+        fun `Should update item`() {
             val token = transaction {
                 ProviderEntity.deleteAll()
 
@@ -142,6 +177,26 @@ class ProviderControllerTests {
                         .content("""{"id": "email"}""")
                 )
                 ?.andExpect(status().isOk)
+        }
+
+
+        @Test
+        fun `Should update without token`() {
+            transaction {
+                ProviderEntity.deleteAll()
+
+                ProviderEntity.insert {
+                    it[id] = EntityID("email", ProviderEntity)
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/provider")
+                        .header("Content-Type", "application/json")
+                        .content("""{"id": "email"}""")
+                )
+                ?.andExpect(status().isForbidden)
         }
     }
 
