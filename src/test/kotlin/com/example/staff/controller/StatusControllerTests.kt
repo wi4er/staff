@@ -6,12 +6,13 @@ import com.example.staff.permission.EntityType
 import com.example.staff.permission.MethodType
 import com.example.staff.permission.UserAccount
 import com.example.staff.resolver.PropertyResolver
+import com.example.staff.resolver.StatusResolver
 import com.google.gson.Gson
 import org.jetbrains.exposed.dao.EntityID
 import org.jetbrains.exposed.sql.deleteAll
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.transactions.transaction
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
@@ -20,10 +21,10 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.*
 
-class PropertyControllerTests {
+class StatusControllerTests {
     @SpringBootTest
     @AutoConfigureMockMvc
-    class PropertyControllerGetTests {
+    class StatusControllerGetTests {
         @Autowired
         private val mockMvc: MockMvc? = null
 
@@ -36,7 +37,7 @@ class PropertyControllerTests {
 
             MethodPermissionEntity.insert {
                 it[method] = MethodType.GET
-                it[entity] = EntityType.PROPERTY
+                it[entity] = EntityType.STATUS
                 it[group] = EntityID(777, GroupEntity)
             }
 
@@ -46,22 +47,22 @@ class PropertyControllerTests {
         @Test
         fun `Should get empty list`() {
             val token = transaction {
-                PropertyEntity.deleteAll()
+                StatusEntity.deleteAll()
                 addPermission()
             }
 
             mockMvc
-                ?.perform(get("/property").header("authorization", token))
+                ?.perform(get("/status").header("authorization", token))
                 ?.andExpect(status().isOk)
         }
 
         @Test
         fun `Should get full list`() {
             val token = transaction {
-                PropertyEntity.deleteAll()
+                StatusEntity.deleteAll()
                 addPermission().also {
                     for (i in 1..10) {
-                        PropertyEntity.insert {
+                        StatusEntity.insert {
                             it[id] = EntityID("status_${i}", StatusEntity)
                         }
                     }
@@ -69,77 +70,77 @@ class PropertyControllerTests {
             }
 
             mockMvc
-                ?.perform(get("/property").header("authorization", token))
+                ?.perform(get("/status").header("authorization", token))
                 ?.andExpect(status().isOk)
                 ?.andExpect(header().string("Content-Size", "10"))
                 ?.andExpect {
-                    val list = Gson().fromJson(it.response.contentAsString, Array<PropertyResolver>::class.java)
-                    assertEquals(10, list.size)
+                    val list = Gson().fromJson(it.response.contentAsString, Array<StatusResolver>::class.java)
+                    Assertions.assertEquals(10, list.size)
                 }
         }
 
         @Test
         fun `Should get list with limit`() {
             val token = transaction {
-                PropertyEntity.deleteAll()
+                StatusEntity.deleteAll()
                 addPermission().also {
                     for (i in 1..10) {
-                        PropertyEntity.insert {
-                            it[id] = EntityID("status_${i}", PropertyEntity)
+                        StatusEntity.insert {
+                            it[id] = EntityID("status_${i}", StatusEntity)
                         }
                     }
                 }
             }
 
             mockMvc
-                ?.perform(get("/property?limit=5").header("authorization", token))
+                ?.perform(get("/status?limit=5").header("authorization", token))
                 ?.andExpect(status().isOk)
                 ?.andExpect(header().string("Content-Size", "10"))
                 ?.andExpect {
                     val list = Gson().fromJson(it.response.contentAsString, Array<PropertyResolver>::class.java)
-                    assertEquals(5, list.size)
+                    Assertions.assertEquals(5, list.size)
                 }
         }
 
         @Test
         fun `Should get list with offset`() {
             val token = transaction {
-                PropertyEntity.deleteAll()
+                StatusEntity.deleteAll()
                 addPermission().also {
                     for (i in 1..10) {
-                        PropertyEntity.insert {
-                            it[id] = EntityID("status_${i}", PropertyEntity)
+                        StatusEntity.insert {
+                            it[id] = EntityID("status_${i}", StatusEntity)
                         }
                     }
                 }
             }
 
             mockMvc
-                ?.perform(get("/property?offset=5").header("authorization", token))
+                ?.perform(get("/status?offset=5").header("authorization", token))
                 ?.andExpect(status().isOk)
                 ?.andExpect(header().string("Content-Size", "10"))
                 ?.andExpect {
                     val list = Gson().fromJson(it.response.contentAsString, Array<PropertyResolver>::class.java)
-                    assertEquals(5, list.size)
-                    assertEquals("status_6", list.first().id)
+                    Assertions.assertEquals(5, list.size)
+                    Assertions.assertEquals("status_6", list.first().id)
                 }
         }
 
         @Test
         fun `Shouldn't get without token`() {
             transaction {
-                PropertyEntity.deleteAll()
+                StatusEntity.deleteAll()
             }
 
             mockMvc
-                ?.perform(get("/property"))
+                ?.perform(get("/status"))
                 ?.andExpect(status().isForbidden)
         }
 
         @Test
         fun `Shouldn't get without method permission`() {
             val token = transaction {
-                PropertyEntity.deleteAll()
+                StatusEntity.deleteAll()
                 GroupEntity.deleteAll()
                 GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
 
@@ -147,14 +148,14 @@ class PropertyControllerTests {
             }
 
             mockMvc
-                ?.perform(get("/property").header("authorization", token))
+                ?.perform(get("/status").header("authorization", token))
                 ?.andExpect(status().isForbidden)
         }
     }
 
     @SpringBootTest
     @AutoConfigureMockMvc
-    class PropertyControllerPostTests {
+    class StatusControllerPostTests {
         @Autowired
         private val mockMvc: MockMvc? = null
 
@@ -163,12 +164,11 @@ class PropertyControllerTests {
 
         fun addPermission(): String {
             GroupEntity.deleteAll()
-
             GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
 
             MethodPermissionEntity.insert {
                 it[method] = MethodType.POST
-                it[entity] = EntityType.PROPERTY
+                it[entity] = EntityType.STATUS
                 it[group] = EntityID(777, GroupEntity)
             }
 
@@ -178,16 +178,16 @@ class PropertyControllerTests {
         @Test
         fun `Should add item`() {
             val token = transaction {
-                PropertyEntity.deleteAll()
+                StatusEntity.deleteAll()
                 addPermission()
             }
 
             mockMvc
                 ?.perform(
-                    post("/property")
+                    post("/status")
                         .header("authorization", token)
                         .header("Content-Type", "application/json")
-                        .content("""{"id": "EMAIL"}""")
+                        .content("""{"id": "active"}""")
                 )
                 ?.andExpect(status().isOk)
         }
@@ -195,13 +195,13 @@ class PropertyControllerTests {
         @Test
         fun `Shouldn't add without id`() {
             val token = transaction {
-                PropertyEntity.deleteAll()
+                StatusEntity.deleteAll()
                 addPermission()
             }
 
             mockMvc
                 ?.perform(
-                    post("/property")
+                    post("/status")
                         .header("authorization", token)
                         .header("Content-Type", "application/json")
                         .content("""{}""")
@@ -212,13 +212,13 @@ class PropertyControllerTests {
         @Test
         fun `Shouldn't add with blank id`() {
             val token = transaction {
-                PropertyEntity.deleteAll()
+                StatusEntity.deleteAll()
                 addPermission()
             }
 
             mockMvc
                 ?.perform(
-                    post("/property")
+                    post("/status")
                         .header("authorization", token)
                         .header("Content-Type", "application/json")
                         .content("""{}""")
@@ -229,14 +229,14 @@ class PropertyControllerTests {
         @Test
         fun `Shouldn't add without token`() {
             transaction {
-                PropertyEntity.deleteAll()
+                StatusEntity.deleteAll()
             }
 
             mockMvc
                 ?.perform(
-                    post("/property")
+                    post("/status")
                         .header("Content-Type", "application/json")
-                        .content("""{"id": "EMAIL"}""")
+                        .content("""{"id": "ACTIVE"}""")
                 )
                 ?.andExpect(status().isForbidden)
         }
@@ -244,6 +244,7 @@ class PropertyControllerTests {
         @Test
         fun `Shouldn't add without method permission`() {
             val token = transaction {
+                StatusEntity.deleteAll()
                 GroupEntity.deleteAll()
                 GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
 
@@ -252,18 +253,19 @@ class PropertyControllerTests {
 
             mockMvc
                 ?.perform(
-                    post("/property")
+                    post("/status")
                         .header("authorization", token)
                         .header("Content-Type", "application/json")
-                        .content("""{"id": "EMAIL"}""")
+                        .content("""{"id": "ACTIVE"}""")
                 )
                 ?.andExpect(status().isForbidden)
         }
     }
 
+
     @SpringBootTest
     @AutoConfigureMockMvc
-    class PropertyControllerPutTests {
+    class StatusControllerPutTests {
         @Autowired
         private val mockMvc: MockMvc? = null
 
@@ -277,7 +279,7 @@ class PropertyControllerTests {
 
             MethodPermissionEntity.insert {
                 it[method] = MethodType.PUT
-                it[entity] = EntityType.PROPERTY
+                it[entity] = EntityType.STATUS
                 it[group] = EntityID(777, GroupEntity)
             }
 
@@ -287,21 +289,21 @@ class PropertyControllerTests {
         @Test
         fun `Should get empty list`() {
             val token = transaction {
-                PropertyEntity.deleteAll()
+                StatusEntity.deleteAll()
 
                 addPermission().also {
-                    PropertyEntity.insert {
-                        it[id] = EntityID("name", ProviderEntity)
+                    StatusEntity.insert {
+                        it[id] = EntityID("active", StatusEntity)
                     }
                 }
             }
 
             mockMvc
                 ?.perform(
-                    put("/property")
+                    put("/status")
                         .header("Content-Type", "application/json")
                         .header("authorization", token)
-                        .content("""{"id": "name"}""")
+                        .content("""{"id": "active"}""")
                 )
                 ?.andExpect(status().isOk)
         }
@@ -309,7 +311,7 @@ class PropertyControllerTests {
 
     @SpringBootTest
     @AutoConfigureMockMvc
-    class PropertyControllerDeleteTests {
+    class StatusControllerDeleteTests {
         @Autowired
         private val mockMvc: MockMvc? = null
 
@@ -318,12 +320,11 @@ class PropertyControllerTests {
 
         fun addPermission(): String {
             GroupEntity.deleteAll()
-
             GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
 
             MethodPermissionEntity.insert {
                 it[method] = MethodType.DELETE
-                it[entity] = EntityType.PROPERTY
+                it[entity] = EntityType.STATUS
                 it[group] = EntityID(777, GroupEntity)
             }
 
@@ -333,18 +334,18 @@ class PropertyControllerTests {
         @Test
         fun `Should delete item`() {
             val token = transaction {
-                PropertyEntity.deleteAll()
+                StatusEntity.deleteAll()
 
                 addPermission().also {
-                    PropertyEntity.insert {
-                        it[id] = EntityID("name", PropertyEntity)
+                    StatusEntity.insert {
+                        it[id] = EntityID("active", PropertyEntity)
                     }
                 }
             }
 
             mockMvc
                 ?.perform(
-                    delete("/property?id=name")
+                    delete("/status?id=active")
                         .header("authorization", token)
                 )
                 ?.andExpect(status().isOk)

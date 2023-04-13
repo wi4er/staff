@@ -4,10 +4,10 @@ import com.example.staff.exception.NoDataException
 import com.example.staff.exception.PermissionException
 import com.example.staff.exception.StaffException
 import com.example.staff.input.ProviderInput
+import com.example.staff.input.StatusInput
 import com.example.staff.model.*
 import com.example.staff.permission.*
-import com.example.staff.resolver.PropertyResolver
-import com.example.staff.resolver.ProviderResolver
+import com.example.staff.resolver.StatusResolver
 import org.jetbrains.exposed.dao.EntityID
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -16,14 +16,14 @@ import org.springframework.web.bind.annotation.*
 import javax.servlet.http.HttpServletResponse
 
 @RestController
-@RequestMapping("/property")
-class PropertyController(
+@RequestMapping("/status")
+class StatusController(
     val accountFactory: AccountFactory,
     val permissionService: MethodPermissionService,
 ) {
-    fun Query.toResolver(): List<PropertyResolver> = map {
-        PropertyResolver(
-            id = it[PropertyEntity.id].value
+    fun Query.toResolver(): List<StatusResolver> = map {
+        StatusResolver(
+            id = it[StatusEntity.id].value
         )
     }
 
@@ -34,26 +34,26 @@ class PropertyController(
         @RequestParam offset: Int?,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
         response: HttpServletResponse,
-    ): List<PropertyResolver> = transaction {
+    ): List<StatusResolver> = transaction {
         authorization ?: throw PermissionException("Permission denied!")
 
         val account: Account = authorization.let(accountFactory::createFromToken)
 
         permissionService.check(
-            entity = EntityType.PROPERTY,
+            entity = EntityType.STATUS,
             method = MethodType.GET,
             group = account.groups,
         )
 
-        val count: Int = PropertyEntity
+        val count: Int = StatusEntity
             .selectAll()
             .count()
 
         response.addIntHeader("Content-Size", count)
         response.addHeader("Access-Control-Expose-Headers", "Content-Size")
 
-        PropertyEntity
-            .slice(PropertyEntity.id)
+        StatusEntity
+            .slice(StatusEntity.id)
             .selectAll()
             .also { it.limit(limit ?: Int.MAX_VALUE, offset ?: 0) }
             .toResolver()
@@ -62,29 +62,29 @@ class PropertyController(
     @PostMapping
     @CrossOrigin
     fun addItem(
-        @RequestBody input: ProviderInput,
+        @RequestBody input: StatusInput,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
-    ): PropertyResolver = transaction {
+    ): StatusResolver = transaction {
         authorization ?: throw PermissionException("Permission denied!")
 
         val account: Account = authorization.let(accountFactory::createFromToken)
 
         permissionService.check(
-            entity = EntityType.PROPERTY,
+            entity = EntityType.STATUS,
             method = MethodType.POST,
             group = account.groups,
         )
 
         val id: EntityID<String> = try {
-            PropertyEntity.insertAndGetId {
-                it[id] = EntityID(input.id ?: throw StaffException("Property id expected"), ProviderEntity)
+            StatusEntity.insertAndGetId {
+                it[id] = EntityID(input.id ?: throw StaffException("Status id expected"), StatusEntity)
             }
         } catch (ex: Exception) {
-            throw StaffException("Wrong provider")
+            throw StaffException("Wrong status")
         }
 
-        PropertyEntity
-            .select { PropertyEntity.id eq id }
+        StatusEntity
+            .select { StatusEntity.id eq id }
             .toResolver()
             .firstOrNull()
             ?: throw PermissionException("Permission denied!")
@@ -93,34 +93,33 @@ class PropertyController(
     @PutMapping
     @CrossOrigin
     fun updateItem(
-        @RequestBody input: ProviderInput,
+        @RequestBody input: StatusInput,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
-    ): PropertyResolver = transaction {
+    ): StatusResolver = transaction {
         authorization ?: throw PermissionException("Permission denied!")
 
         val account: Account = authorization.let(accountFactory::createFromToken)
 
         permissionService.check(
-            entity = EntityType.PROPERTY,
+            entity = EntityType.STATUS,
             method = MethodType.PUT,
             group = account.groups,
         )
 
         try {
-            PropertyEntity.update(
-                where = { ProviderEntity.id eq input.id }
+            StatusEntity.update(
+                where = { StatusEntity.id eq input.id }
             ) {
-
             }
         } catch (ex: Exception) {
-            throw StaffException("Wrong property")
+            throw StaffException("Wrong status")
         }
 
-        PropertyEntity
-            .select { PropertyEntity.id eq input.id }
+        StatusEntity
+            .select { StatusEntity.id eq input.id }
             .toResolver()
             .firstOrNull()
-            ?: throw NoDataException("Wrong property")
+            ?: throw NoDataException("Wrong status")
     }
 
     @DeleteMapping
@@ -128,22 +127,22 @@ class PropertyController(
     fun deleteItem(
         @RequestParam id: String,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
-    ): PropertyResolver = transaction {
+    ): StatusResolver = transaction {
         authorization ?: throw PermissionException("Permission denied!")
 
         val account: Account = authorization.let(accountFactory::createFromToken)
 
         permissionService.check(
-            entity = EntityType.PROPERTY,
+            entity = EntityType.STATUS,
             method = MethodType.DELETE,
             group = account.groups,
         )
 
-        PropertyEntity
-            .select { PropertyEntity.id eq id }
+        StatusEntity
+            .select { StatusEntity.id eq id }
             .toResolver()
             .firstOrNull()
-            ?.also { PropertyEntity.deleteWhere { PropertyEntity.id eq id } }
-            ?: throw NoDataException("Wrong provider")
+            ?.also { StatusEntity.deleteWhere { StatusEntity.id eq id } }
+            ?: throw NoDataException("Wrong status")
     }
 }
