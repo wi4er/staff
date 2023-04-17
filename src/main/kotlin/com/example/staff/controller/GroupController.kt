@@ -1,6 +1,7 @@
 package com.example.staff.controller
 
 import com.example.staff.exception.PermissionException
+import com.example.staff.exception.StaffException
 import com.example.staff.input.GroupInput
 import com.example.staff.model.GroupEntity
 import com.example.staff.permission.*
@@ -31,17 +32,19 @@ class GroupController(
     fun getList(
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): List<GroupResolver> = transaction {
-        val account: Account? = authorization?.let(accountFactory::createFromToken)
+        authorization ?: throw PermissionException("Permission denied!")
 
-        account?.let {
-            permissionService.check(
-                entity = EntityType.GROUP,
-                method = MethodType.GET,
-                group = account.groups,
-            )
+        val account: Account = authorization.let(accountFactory::createFromToken)
 
-            GroupEntity.selectAll().toResolver()
-        } ?: throw PermissionException("Permission denied!")
+        permissionService.check(
+            entity = EntityType.GROUP,
+            method = MethodType.GET,
+            group = account.groups,
+        )
+
+        GroupEntity
+            .selectAll()
+            .toResolver()
     }
 
     @PostMapping
@@ -50,27 +53,32 @@ class GroupController(
         @RequestBody input: GroupInput,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): GroupResolver = transaction {
-        val account: Account? = authorization?.let(accountFactory::createFromToken)
+        authorization ?: throw PermissionException("Permission denied!")
 
-        account?.let {
-            permissionService.check(
-                entity = EntityType.GROUP,
-                method = MethodType.POST,
-                group = account.groups,
-            )
+        val account: Account = authorization.let(accountFactory::createFromToken)
 
+        permissionService.check(
+            entity = EntityType.GROUP,
+            method = MethodType.POST,
+            group = account.groups,
+        )
+
+        val id: EntityID<Int> = try {
             GroupEntity.insertAndGetId { entity ->
                 input.id?.let { entity[GroupEntity.id] = EntityID(input.id, GroupEntity) }
                 input.parent?.let {
                     entity[parent] = EntityID(it, GroupEntity)
                 }
-            }.let {
-                GroupEntity
-                    .select { GroupEntity.id eq it }
-                    .toResolver()
-                    .firstOrNull()
-            } ?: throw Exception("Wrong group")
-        } ?: throw PermissionException("Permission denied!")
+            }
+        } catch (ex: Exception) {
+            throw StaffException("Wrong group")
+        }
+
+        GroupEntity
+            .select { GroupEntity.id eq id }
+            .toResolver()
+            .firstOrNull()
+            ?: throw Exception("Wrong group")
     }
 
     @PutMapping
@@ -79,28 +87,33 @@ class GroupController(
         @RequestBody input: GroupInput,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): GroupResolver = transaction {
-        val account: Account? = authorization?.let(accountFactory::createFromToken)
+        authorization ?: throw PermissionException("Permission denied!")
 
-        account?.let {
-            permissionService.check(
-                entity = EntityType.GROUP,
-                method = MethodType.PUT,
-                group = account.groups,
-            )
+        val account: Account = authorization.let(accountFactory::createFromToken)
 
+        permissionService.check(
+            entity = EntityType.GROUP,
+            method = MethodType.PUT,
+            group = account.groups,
+        )
+
+        try {
             GroupEntity.update(
                 where = { GroupEntity.id eq input.id }
             ) { entity ->
                 input.parent
                     ?.let { entity[parent] = EntityID(it, GroupEntity) }
                     ?: run { entity[parent] = null }
-            }.let {
-                GroupEntity
-                    .select { GroupEntity.id eq input.id }
-                    .toResolver()
-                    .firstOrNull()
-            } ?: throw Exception("User group not found")
-        } ?: throw PermissionException("Permission denied!")
+            }
+        } catch (ex: Exception) {
+            throw StaffException("Wrong group")
+        }
+
+        GroupEntity
+            .select { GroupEntity.id eq input.id }
+            .toResolver()
+            .firstOrNull()
+            ?: throw Exception("User group not found")
     }
 
     @DeleteMapping
@@ -109,20 +122,20 @@ class GroupController(
         @RequestParam id: Int,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): GroupResolver = transaction {
-        val account: Account? = authorization?.let(accountFactory::createFromToken)
+        authorization ?: throw PermissionException("Permission denied!")
 
-        account?.let {
-            permissionService.check(
-                entity = EntityType.GROUP,
-                method = MethodType.DELETE,
-                group = account.groups,
-            )
+        val account: Account = authorization.let(accountFactory::createFromToken)
 
-            GroupEntity.select { GroupEntity.id eq id }
-                .toResolver()
-                .firstOrNull()
-                .also { GroupEntity.deleteWhere { GroupEntity.id eq id } }
-                ?: throw Exception("Wrong group")
-        } ?: throw PermissionException("Permission denied!")
+        permissionService.check(
+            entity = EntityType.GROUP,
+            method = MethodType.DELETE,
+            group = account.groups,
+        )
+
+        GroupEntity.select { GroupEntity.id eq id }
+            .toResolver()
+            .firstOrNull()
+            .also { GroupEntity.deleteWhere { GroupEntity.id eq id } }
+            ?: throw Exception("Wrong group")
     }
 }

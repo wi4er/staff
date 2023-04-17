@@ -9,6 +9,7 @@ enum class EntityType {
     PROPERTY,
     STATUS,
     DIRECTORY,
+    POINT,
     PUBLIC,
     ADMIN,
 }

@@ -151,14 +151,14 @@ class GroupControllerTests {
                 addPermission()
             }
 
-            assertThrows<Exception> {
-                mockMvc?.perform(
+            mockMvc
+                ?.perform(
                     post("/group")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"id":1, "parent": 4444}""")
                         .header("authorization", token)
                 )
-            }
+                ?.andExpect(status().isBadRequest)
         }
 
         @Test
@@ -173,14 +173,14 @@ class GroupControllerTests {
                 }
             }
 
-            assertThrows<Exception> {
-                mockMvc?.perform(
+            mockMvc
+                ?.perform(
                     post("/group")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"id":1}""")
                         .header("authorization", token)
                 )
-            }
+                ?.andExpect(status().isBadRequest)
         }
 
         @Test
@@ -190,12 +190,13 @@ class GroupControllerTests {
                 addPermission()
             }
 
-            mockMvc?.perform(
-                post("/group")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content("""{}""")
-                    .header("authorization", token)
-            )
+            mockMvc
+                ?.perform(
+                    post("/group")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{}""")
+                        .header("authorization", token)
+                )
                 ?.andExpect(status().isOk)
                 ?.andExpect {
                     val item = Gson().fromJson(it.response.contentAsString, GroupResolver::class.java)

@@ -79,46 +79,46 @@ class UserController(
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
         response: HttpServletResponse,
     ): List<UserResolver> = transaction {
-        val account: Account? = authorization?.let(accountFactory::createFromToken)
+        authorization ?: throw PermissionException("Permission denied!")
 
-        account?.let {
-            permissionService.check(
-                entity = EntityType.USER,
-                method = MethodType.GET,
-                group = account.groups,
-            )
+        val account: Account = authorization.let(accountFactory::createFromToken)
 
-            val count: Int = UserEntity
-                .join(UserPermissionEntity, JoinType.INNER) {
-                    UserEntity.id eq UserPermissionEntity.user and (
-                    UserPermissionEntity.group inList account.groups
-                    ) and (
-                    UserPermissionEntity.method eq MethodType.GET
-                    )
-                }
-                .selectAll()
-                .toFilter(filter)
-                .count()
+        permissionService.check(
+            entity = EntityType.USER,
+            method = MethodType.GET,
+            group = account.groups,
+        )
 
-            response.addIntHeader("Content-Size", count)
-            response.addHeader("Access-Control-Expose-Headers", "Content-Size")
+        val count: Int = UserEntity
+            .join(UserPermissionEntity, JoinType.INNER) {
+                UserEntity.id eq UserPermissionEntity.user and (
+                UserPermissionEntity.group inList account.groups
+                ) and (
+                UserPermissionEntity.method eq MethodType.GET
+                )
+            }
+            .selectAll()
+            .toFilter(filter)
+            .count()
 
-            UserEntity
-                .join(UserPermissionEntity, JoinType.INNER) {
-                    UserEntity.id eq UserPermissionEntity.user and (
-                    UserPermissionEntity.group inList account.groups
-                    ) and (
-                    UserPermissionEntity.method eq MethodType.GET
-                    )
-                }
-                .slice(UserEntity.id, UserEntity.login)
-                .selectAll()
-                .toFilter(filter)
-                .also { it.limit(limit ?: Int.MAX_VALUE, offset ?: 0) }
-                .groupBy(UserEntity.id)
-                .orderBy(UserEntity.login)
-                .toResolver()
-        } ?: throw PermissionException("Permission denied!")
+        response.addIntHeader("Content-Size", count)
+        response.addHeader("Access-Control-Expose-Headers", "Content-Size")
+
+        UserEntity
+            .join(UserPermissionEntity, JoinType.INNER) {
+                UserEntity.id eq UserPermissionEntity.user and (
+                UserPermissionEntity.group inList account.groups
+                ) and (
+                UserPermissionEntity.method eq MethodType.GET
+                )
+            }
+            .slice(UserEntity.id, UserEntity.login)
+            .selectAll()
+            .toFilter(filter)
+            .also { it.limit(limit ?: Int.MAX_VALUE, offset ?: 0) }
+            .groupBy(UserEntity.id)
+            .orderBy(UserEntity.login)
+            .toResolver()
     }
 
     @PostMapping
@@ -127,28 +127,29 @@ class UserController(
         @RequestBody input: UserInput,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): UserResolver = transaction {
-        val account: Account? = authorization?.let(accountFactory::createFromToken)
+        authorization ?: throw PermissionException("Permission denied!")
 
-        account?.let {
-            permissionService.check(
-                entity = EntityType.USER,
-                method = MethodType.POST,
-                group = account.groups,
-            )
+        val account: Account = authorization.let(accountFactory::createFromToken)
 
-            val id: EntityID<Int> = try {
-                UserEntity.insertAndGetId {
-                    it[login] = input.login
-                }.also { id -> saver.forEach { it.save(id, input) } }
-            } catch (ex: Exception) {
-                throw StaffException("Wrong user")
-            }
+        permissionService.check(
+            entity = EntityType.USER,
+            method = MethodType.POST,
+            group = account.groups,
+        )
 
-            UserEntity
-                .select { UserEntity.id eq id }
-                .toResolver()
-                .firstOrNull()
-        } ?: throw PermissionException("Permission denied!")
+        val id: EntityID<Int> = try {
+            UserEntity.insertAndGetId {
+                it[login] = input.login
+            }.also { id -> saver.forEach { it.save(id, input) } }
+        } catch (ex: Exception) {
+            throw StaffException("Wrong user")
+        }
+
+        UserEntity
+            .select { UserEntity.id eq id }
+            .toResolver()
+            .firstOrNull()
+            ?: throw NoDataException("User not found")
     }
 
     @PutMapping
@@ -157,28 +158,28 @@ class UserController(
         @RequestBody input: UserInput,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): UserResolver = transaction {
-        val account: Account? = authorization?.let(accountFactory::createFromToken)
+        authorization ?: throw PermissionException("Permission denied!")
 
-        account?.let {
-            permissionService.check(
-                entity = EntityType.USER,
-                method = MethodType.PUT,
-                group = account.groups,
-            )
+        val account: Account = authorization.let(accountFactory::createFromToken)
 
-            UserEntity.update(
-                where = { UserEntity.id eq input.id }
-            ) {
-                it[login] = input.login
-            }.also { id ->
-                saver.forEach { it.save(EntityID(id, UserEntity), input) }
-            }.let {
-                UserEntity
-                    .select { UserEntity.id eq it }
-                    .toResolver()
-                    .firstOrNull()
-            } ?: throw Exception("Wrong user")
-        } ?: throw PermissionException("Permission denied!")
+        permissionService.check(
+            entity = EntityType.USER,
+            method = MethodType.PUT,
+            group = account.groups,
+        )
+
+        UserEntity.update(
+            where = { UserEntity.id eq input.id }
+        ) {
+            it[login] = input.login
+        }.also { id ->
+            saver.forEach { it.save(EntityID(id, UserEntity), input) }
+        }.let {
+            UserEntity
+                .select { UserEntity.id eq it }
+                .toResolver()
+                .firstOrNull()
+        } ?: throw Exception("Wrong user")
     }
 
     @DeleteMapping
@@ -187,27 +188,27 @@ class UserController(
         @RequestParam id: Int,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): UserResolver = transaction {
-        val account: Account? = authorization?.let(accountFactory::createFromToken)
+        authorization ?: throw PermissionException("Permission denied!")
 
-        account?.let {
-            permissionService.check(
-                entity = EntityType.USER,
-                method = MethodType.DELETE,
-                group = account.groups,
-            )
+        val account: Account = authorization.let(accountFactory::createFromToken)
 
-            UserEntity
-                .join(UserPermissionEntity, JoinType.INNER) {
-                    UserEntity.id eq UserPermissionEntity.user and (
-                    UserPermissionEntity.group inList account.groups and (
-                    UserPermissionEntity.method eq MethodType.DELETE)
-                    )
-                }
-                .select { UserEntity.id eq id }
-                .toResolver()
-                .firstOrNull()
-                ?.also { UserEntity.deleteWhere { UserEntity.id eq id } }
-                ?: throw NoDataException("Wrong user")
-        } ?: throw PermissionException("Permission denied!")
+        permissionService.check(
+            entity = EntityType.USER,
+            method = MethodType.DELETE,
+            group = account.groups,
+        )
+
+        UserEntity
+            .join(UserPermissionEntity, JoinType.INNER) {
+                UserEntity.id eq UserPermissionEntity.user and (
+                UserPermissionEntity.group inList account.groups and (
+                UserPermissionEntity.method eq MethodType.DELETE)
+                )
+            }
+            .select { UserEntity.id eq id }
+            .toResolver()
+            .firstOrNull()
+            ?.also { UserEntity.deleteWhere { UserEntity.id eq id } }
+            ?: throw NoDataException("Wrong user")
     }
 }
