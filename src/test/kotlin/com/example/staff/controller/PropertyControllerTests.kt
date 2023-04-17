@@ -450,5 +450,62 @@ class PropertyControllerTests {
                 )
                 ?.andExpect(status().isOk)
         }
+
+        @Test
+        fun `Shouldn't delete without token`() {
+            transaction {
+                PropertyEntity.deleteAll()
+
+                PropertyEntity.insert {
+                    it[id] = EntityID("name", PropertyEntity)
+                }
+            }
+
+            mockMvc
+                ?.perform(delete("/property?id=name"))
+                ?.andExpect(status().isForbidden)
+        }
+
+        @Test
+        fun `Shouldn't delete without method permission`() {
+            val token = transaction {
+                PropertyEntity.deleteAll()
+                GroupEntity.deleteAll()
+                GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
+
+                PropertyEntity.insert {
+                    it[id] = EntityID("name", PropertyEntity)
+                }
+
+                accountFactory?.createToken(UserAccount(id = 1, groups = listOf(777))) ?: ""
+            }
+
+            mockMvc
+                ?.perform(
+                    delete("/property?id=name")
+                        .header("authorization", token)
+                )
+                ?.andExpect(status().isForbidden)
+        }
+
+        @Test
+        fun `Shouldn't delete with wrong id`() {
+            val token = transaction {
+                PropertyEntity.deleteAll()
+
+                addPermission().also {
+                    PropertyEntity.insert {
+                        it[id] = EntityID("name", PropertyEntity)
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    delete("/property?id=wrong")
+                        .header("authorization", token)
+                )
+                ?.andExpect(status().isNotFound)
+        }
     }
 }

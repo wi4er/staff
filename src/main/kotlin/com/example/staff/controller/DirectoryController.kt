@@ -1,7 +1,9 @@
 package com.example.staff.controller
 
+import com.example.staff.exception.NoDataException
 import com.example.staff.exception.PermissionException
 import com.example.staff.exception.StaffException
+import com.example.staff.input.DirectoryInput
 import com.example.staff.input.ProviderInput
 import com.example.staff.model.DirectoryEntity
 import com.example.staff.model.PropertyEntity
@@ -10,11 +12,8 @@ import com.example.staff.permission.*
 import com.example.staff.resolver.DirectoryResolver
 import com.example.staff.resolver.PropertyResolver
 import org.jetbrains.exposed.dao.EntityID
-import org.jetbrains.exposed.sql.Query
+import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.insertAndGetId
-import org.jetbrains.exposed.sql.select
-import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.springframework.http.HttpHeaders
 import org.springframework.web.bind.annotation.*
@@ -67,7 +66,7 @@ class DirectoryController(
     @PostMapping
     @CrossOrigin
     fun addItem(
-        @RequestBody input: ProviderInput,
+        @RequestBody input: DirectoryInput,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): DirectoryResolver = transaction {
         authorization ?: throw PermissionException("Permission denied!")
@@ -93,5 +92,63 @@ class DirectoryController(
             .toResolver()
             .firstOrNull()
             ?: throw PermissionException("Permission denied!")
+    }
+
+    @PutMapping
+    @CrossOrigin
+    fun updateItem(
+        @RequestBody input: DirectoryInput,
+        @RequestParam id: String,
+        @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
+    ): DirectoryResolver = transaction {
+        authorization ?: throw PermissionException("Permission denied!")
+
+        val account: Account = authorization.let(accountFactory::createFromToken)
+
+        permissionService.check(
+            entity = EntityType.DIRECTORY,
+            method = MethodType.PUT,
+            group = account.groups,
+        )
+
+        try {
+            DirectoryEntity.update(
+                where = { DirectoryEntity.id eq id }
+            ) {
+                it[DirectoryEntity.id] = EntityID(input.id, DirectoryEntity)
+            }
+        } catch (ex: Exception) {
+            throw StaffException("Wrong property")
+        }
+
+        DirectoryEntity
+            .select { DirectoryEntity.id eq input.id }
+            .toResolver()
+            .firstOrNull()
+            ?: throw NoDataException("Property not found")
+    }
+
+    @DeleteMapping
+    @CrossOrigin
+    fun deleteItem(
+        @RequestParam id: String,
+        @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
+    ): DirectoryResolver = transaction {
+        authorization ?: throw PermissionException("Permission denied!")
+
+        val account: Account = authorization.let(accountFactory::createFromToken)
+
+        permissionService.check(
+            entity = EntityType.DIRECTORY,
+            method = MethodType.DELETE,
+            group = account.groups,
+        )
+
+        DirectoryEntity
+            .select { DirectoryEntity.id eq id }
+            .toResolver()
+            .firstOrNull()
+            ?.also { DirectoryEntity.deleteWhere { DirectoryEntity.id eq id } }
+            ?: throw NoDataException("Wrong directory")
     }
 }

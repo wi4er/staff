@@ -3,6 +3,7 @@ package com.example.staff.controller
 import com.example.staff.exception.NoDataException
 import com.example.staff.exception.PermissionException
 import com.example.staff.exception.StaffException
+import com.example.staff.input.PropertyInput
 import com.example.staff.input.ProviderInput
 import com.example.staff.model.*
 import com.example.staff.permission.*
@@ -93,7 +94,7 @@ class PropertyController(
     @PutMapping
     @CrossOrigin
     fun updateItem(
-        @RequestBody input: ProviderInput,
+        @RequestBody input: PropertyInput,
         @RequestParam id: String,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): PropertyResolver = transaction {
@@ -145,6 +146,6 @@ class PropertyController(
             .toResolver()
             .firstOrNull()
             ?.also { PropertyEntity.deleteWhere { PropertyEntity.id eq id } }
-            ?: throw NoDataException("Wrong provider")
+            ?: throw NoDataException("Wrong property")
     }
 }

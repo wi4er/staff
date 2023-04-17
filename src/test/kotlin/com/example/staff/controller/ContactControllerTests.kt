@@ -26,7 +26,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 class ContactControllerTests {
     @SpringBootTest
     @AutoConfigureMockMvc
-    class GroupControllerGetTests {
+    class ContactControllerGetTests {
         @Autowired
         private val mockMvc: MockMvc? = null
 
@@ -182,7 +182,8 @@ class ContactControllerTests {
                 )
                 ?.andExpect(status().isOk)
                 ?.andExpect {
-                    val item: ContactResolver = Gson().fromJson(it.response.contentAsString, ContactResolver::class.java)
+                    val item: ContactResolver =
+                        Gson().fromJson(it.response.contentAsString, ContactResolver::class.java)
 
                     Assertions.assertEquals("email", item.id)
                     Assertions.assertEquals(ContactType.EMAIL, item.type)
@@ -242,7 +243,7 @@ class ContactControllerTests {
 
     @SpringBootTest
     @AutoConfigureMockMvc
-    class GroupControllerPutTests {
+    class ContactControllerPutTests {
         @Autowired
         private val mockMvc: MockMvc? = null
 
@@ -272,31 +273,50 @@ class ContactControllerTests {
                         it[id] = EntityID("SOME", ContactEntity)
                         it[type] = ContactType.EMAIL
                     }
-                    ContactPermissionEntity.insert {
-                        it[group] = EntityID(777, GroupEntity)
-                        it[contact] = EntityID("SOME", ContactEntity)
-                        it[method] = MethodType.PUT
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/contact?id=SOME")
+                        .header("authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"id":"Updated", "type": "PHONE"}""")
+                )
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val item: ContactResolver =
+                        Gson().fromJson(it.response.contentAsString, ContactResolver::class.java)
+
+                    Assertions.assertEquals("Updated", item.id)
+                    Assertions.assertEquals(ContactType.PHONE, item.type)
+                }
+        }
+
+        @Test
+        fun `Shouldn't update without id`() {
+            val token = transaction {
+                ContactEntity.deleteAll()
+                addPermission().also {
+                    ContactEntity.insert {
+                        it[id] = EntityID("some", ContactEntity)
+                        it[type] = ContactType.EMAIL
                     }
                 }
             }
 
             mockMvc
                 ?.perform(
-                    put("/contact")
+                    put("/contact?id=some")
                         .header("authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""{"id":"SOME", "type": "PHONE"}""")
+                        .content("""{"type":"EMAIL"}""")
                 )
-                ?.andExpect(status().isOk)
-                ?.andExpect {
-                    val item: ContactResolver = Gson().fromJson(it.response.contentAsString, ContactResolver::class.java)
-
-                    Assertions.assertEquals("SOME", item.id)
-                    Assertions.assertEquals(ContactType.PHONE, item.type)
-                }
+                ?.andExpect(status().isBadRequest)
         }
+
         @Test
-        fun `Shouldn't update without permission`() {
+        fun `Shouldn't update with wrong id`() {
             val token = transaction {
                 ContactEntity.deleteAll()
                 addPermission().also {
@@ -309,8 +329,115 @@ class ContactControllerTests {
 
             mockMvc
                 ?.perform(
-                    put("/contact")
+                    put("/contact?id=wrong")
                         .header("authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"id":"Updated", "type": "PHONE"}""")
+                )
+                ?.andExpect(status().isNotFound)
+        }
+
+        @Test
+        fun `Shouldn't update with blank id`() {
+            val token = transaction {
+                ContactEntity.deleteAll()
+                addPermission().also {
+                    ContactEntity.insert {
+                        it[id] = EntityID("some", ContactEntity)
+                        it[type] = ContactType.EMAIL
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/contact?id=some")
+                        .header("authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"id":"", "type": "PHONE"}""")
+                )
+                ?.andExpect(status().isBadRequest)
+        }
+
+        @Test
+        fun `Shouldn't update with wrong type`() {
+            val token = transaction {
+                ContactEntity.deleteAll()
+                addPermission().also {
+                    ContactEntity.insert {
+                        it[id] = EntityID("some", ContactEntity)
+                        it[type] = ContactType.EMAIL
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/contact?id=some")
+                        .header("authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"id":"updated", "type": "WRONG"}""")
+                )
+                ?.andExpect(status().isBadRequest)
+        }
+
+        @Test
+        fun `Shouldn't update without type`() {
+            val token = transaction {
+                ContactEntity.deleteAll()
+                addPermission().also {
+                    ContactEntity.insert {
+                        it[id] = EntityID("some", ContactEntity)
+                        it[type] = ContactType.EMAIL
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/contact?id=some")
+                        .header("authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"id":"updated"}""")
+                )
+                ?.andExpect(status().isBadRequest)
+        }
+
+        @Test
+        fun `Shouldn't update without method permission`() {
+            val token = transaction {
+                ContactEntity.deleteAll()
+
+                ContactEntity.insert {
+                    it[id] = EntityID("SOME", ContactEntity)
+                    it[type] = ContactType.EMAIL
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/contact?id=SOME")
+                        .header("authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"id":"SOME", "type": "PHONE"}""")
+                )
+                ?.andExpect(status().isForbidden)
+        }
+
+        @Test
+        fun `Shouldn't update without token`() {
+            transaction {
+                ContactEntity.deleteAll()
+
+                ContactEntity.insert {
+                    it[id] = EntityID("SOME", ContactEntity)
+                    it[type] = ContactType.EMAIL
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/contact?id=SOME")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"id":"SOME", "type": "PHONE"}""")
                 )
@@ -349,11 +476,6 @@ class ContactControllerTests {
                         it[id] = EntityID("SOME", ContactEntity)
                         it[type] = ContactType.EMAIL
                     }
-                    ContactPermissionEntity.insert {
-                        it[group] = EntityID(777, GroupEntity)
-                        it[contact] = EntityID("SOME", ContactEntity)
-                        it[method] = MethodType.DELETE
-                    }
                 }
             }
 
@@ -365,6 +487,48 @@ class ContactControllerTests {
                         .content("""{"id":"SOME", "type": "PHONE"}""")
                 )
                 ?.andExpect(status().isOk)
+        }
+
+        @Test
+        fun `Shouldn't delete with wrong id`() {
+            val token = transaction {
+                ContactEntity.deleteAll()
+                addPermission().also {
+                    ContactEntity.insert {
+                        it[id] = EntityID("SOME", ContactEntity)
+                        it[type] = ContactType.EMAIL
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    delete("/contact?id=wrong")
+                        .header("authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"id":"SOME", "type": "PHONE"}""")
+                )
+                ?.andExpect(status().isNotFound)
+        }
+
+        @Test
+        fun `Shouldn't delete without token`() {
+            transaction {
+                ContactEntity.deleteAll()
+
+                ContactEntity.insert {
+                    it[id] = EntityID("SOME", ContactEntity)
+                    it[type] = ContactType.EMAIL
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    delete("/contact?id=wrong")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"id":"SOME", "type": "PHONE"}""")
+                )
+                ?.andExpect(status().isForbidden)
         }
     }
 }

@@ -270,4 +270,240 @@ class DirectoryControllerTests {
                 ?.andExpect(status().isForbidden)
         }
     }
+
+    @SpringBootTest
+    @AutoConfigureMockMvc
+    class DirectoryControllerPutTests {
+        @Autowired
+        private val mockMvc: MockMvc? = null
+
+        @Autowired
+        private val accountFactory: AccountFactory? = null
+
+        fun addPermission(): String {
+            GroupEntity.deleteAll()
+            GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
+
+            MethodPermissionEntity.insert {
+                it[method] = MethodType.PUT
+                it[entity] = EntityType.DIRECTORY
+                it[group] = EntityID(777, GroupEntity)
+            }
+
+            return accountFactory?.createToken(UserAccount(id = 1, groups = listOf(777))) ?: ""
+        }
+
+        @Test
+        fun `Should update item`() {
+            val token = transaction {
+                DirectoryEntity.deleteAll()
+
+                addPermission().also {
+                    DirectoryEntity.insert {
+                        it[id] = EntityID("city", ProviderEntity)
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/directory?id=city")
+                        .header("Content-Type", "application/json")
+                        .header("authorization", token)
+                        .content("""{"id": "change"}""")
+                )
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val item = Gson().fromJson(it.response.contentAsString, DirectoryResolver::class.java)
+                    Assertions.assertEquals("change", item.id)
+                }
+        }
+
+        @Test
+        fun `Shouldn't update with wrong id`() {
+            val token = transaction {
+                DirectoryEntity.deleteAll()
+
+                addPermission().also {
+                    DirectoryEntity.insert {
+                        it[id] = EntityID("city", ProviderEntity)
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/directory?id=wrong")
+                        .header("Content-Type", "application/json")
+                        .header("authorization", token)
+                        .content("""{"id": "wrong"}""")
+                )
+                ?.andExpect(status().isNotFound)
+        }
+
+        @Test
+        fun `Shouldn't update to blank id`() {
+            val token = transaction {
+                DirectoryEntity.deleteAll()
+
+                addPermission().also {
+                    DirectoryEntity.insert {
+                        it[id] = EntityID("city", ProviderEntity)
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/directory?id=city")
+                        .header("Content-Type", "application/json")
+                        .header("authorization", token)
+                        .content("""{"id": ""}""")
+                )
+                ?.andExpect(status().isBadRequest)
+        }
+
+        @Test
+        fun `Should update without token`() {
+            transaction {
+                DirectoryEntity.deleteAll()
+
+                DirectoryEntity.insert {
+                    it[id] = EntityID("city", PropertyEntity)
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/directory?id=city")
+                        .header("Content-Type", "application/json")
+                        .content("""{"id": "city"}""")
+                )
+                ?.andExpect(status().isForbidden)
+        }
+
+        @Test
+        fun `Shouldn't update without method permission`() {
+            val token = transaction {
+                GroupEntity.deleteAll()
+                DirectoryEntity.deleteAll()
+                GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
+
+                DirectoryEntity.insert {
+                    it[id] = EntityID("city", PropertyEntity)
+                }
+
+                accountFactory?.createToken(UserAccount(id = 1, groups = listOf(777))) ?: ""
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/directory?id=name")
+                        .header("Content-Type", "application/json")
+                        .header("authorization", token)
+                        .content("""{"id": "city"}""")
+                )
+                ?.andExpect(status().isForbidden)
+        }
+    }
+
+    @SpringBootTest
+    @AutoConfigureMockMvc
+    class DirectoryControllerDeleteTests {
+        @Autowired
+        private val mockMvc: MockMvc? = null
+
+        @Autowired
+        private val accountFactory: AccountFactory? = null
+
+        fun addPermission(): String {
+            GroupEntity.deleteAll()
+            GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
+
+            MethodPermissionEntity.insert {
+                it[method] = MethodType.DELETE
+                it[entity] = EntityType.DIRECTORY
+                it[group] = EntityID(777, GroupEntity)
+            }
+
+            return accountFactory?.createToken(UserAccount(id = 1, groups = listOf(777))) ?: ""
+        }
+
+        @Test
+        fun `Should delete item`() {
+            val token = transaction {
+                DirectoryEntity.deleteAll()
+
+                addPermission().also {
+                    DirectoryEntity.insert {
+                        it[id] = EntityID("name", PropertyEntity)
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    delete("/directory?id=name")
+                        .header("authorization", token)
+                )
+                ?.andExpect(status().isOk)
+        }
+
+        @Test
+        fun `Shouldn't delete without token`() {
+            transaction {
+                DirectoryEntity.deleteAll()
+
+                DirectoryEntity.insert {
+                    it[id] = EntityID("city", PropertyEntity)
+                }
+            }
+
+            mockMvc
+                ?.perform(delete("/directory?id=city"))
+                ?.andExpect(status().isForbidden)
+        }
+
+        @Test
+        fun `Shouldn't delete without method permission`() {
+            val token = transaction {
+                DirectoryEntity.deleteAll()
+                GroupEntity.deleteAll()
+                GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
+
+                DirectoryEntity.insert {
+                    it[id] = EntityID("name", PropertyEntity)
+                }
+
+                accountFactory?.createToken(UserAccount(id = 1, groups = listOf(777))) ?: ""
+            }
+
+            mockMvc
+                ?.perform(
+                    delete("/directory?id=name")
+                        .header("authorization", token)
+                )
+                ?.andExpect(status().isForbidden)
+        }
+
+        @Test
+        fun `Shouldn't delete with wrong id`() {
+            val token = transaction {
+                DirectoryEntity.deleteAll()
+
+                addPermission().also {
+                    DirectoryEntity.insert {
+                        it[id] = EntityID("name", DirectoryEntity)
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    delete("/directory?id=wrong")
+                        .header("authorization", token)
+                )
+                ?.andExpect(status().isNotFound)
+        }
+    }
 }

@@ -80,6 +80,7 @@ class ContactController(
     @CrossOrigin
     fun updateItem(
         @RequestBody input: ContactInput,
+        @RequestParam id: String,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): ContactResolver = transaction {
         authorization ?: throw PermissionException("Permission denied!")
@@ -92,26 +93,23 @@ class ContactController(
             group = account.groups,
         )
 
-        ContactEntity
-            .join(ContactPermissionEntity, JoinType.INNER) {
-                ContactEntity.id eq ContactPermissionEntity.contact and (
-                    ContactPermissionEntity.group inList account.groups and (
-                        ContactPermissionEntity.method eq MethodType.PUT))
+        try {
+            ContactEntity.update(
+                where = { ContactEntity.id eq id }
+            ) {
+                it[this.id] = EntityID(input.id ?: throw StaffException("Contact id required"), ContactEntity)
+                it[type] = ContactType.valueOf(input.type ?: throw StaffException("Contact type required"))
             }
-            .select { ContactEntity.id eq input.id }
-            .firstOrNull()
-            ?: throw PermissionException("Permission denied!")
+        } catch (ex: Exception) {
+            throw StaffException("Wrong contact")
+        }
 
-        ContactEntity.update(
-            where = { ContactEntity.id eq input.id }
-        ) {
-            input.type?.let { some -> it[type] = ContactType.valueOf(some) }
-        }.let {
-            ContactEntity
-                .select { ContactEntity.id eq input.id }
-                .toResolver()
-                .firstOrNull()
-        } ?: throw NoDataException("Wrong contact")
+
+        ContactEntity
+            .select { ContactEntity.id eq input.id }
+            .toResolver()
+            .firstOrNull()
+            ?: throw NoDataException("Wrong contact")
     }
 
     @DeleteMapping
@@ -131,11 +129,6 @@ class ContactController(
         )
 
         ContactEntity
-            .join(ContactPermissionEntity, JoinType.INNER) {
-                ContactEntity.id eq ContactPermissionEntity.contact and (
-                    ContactPermissionEntity.group inList account.groups and (
-                        ContactPermissionEntity.method eq MethodType.DELETE))
-            }
             .select { ContactEntity.id eq id }
             .toResolver()
             .firstOrNull()
