@@ -94,6 +94,7 @@ class PropertyController(
     @CrossOrigin
     fun updateItem(
         @RequestBody input: ProviderInput,
+        @RequestParam id: String,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): PropertyResolver = transaction {
         authorization ?: throw PermissionException("Permission denied!")
@@ -108,9 +109,9 @@ class PropertyController(
 
         try {
             PropertyEntity.update(
-                where = { ProviderEntity.id eq input.id }
+                where = { PropertyEntity.id eq id }
             ) {
-
+                it[PropertyEntity.id] = EntityID(input.id, PropertyEntity)
             }
         } catch (ex: Exception) {
             throw StaffException("Wrong property")
@@ -120,7 +121,7 @@ class PropertyController(
             .select { PropertyEntity.id eq input.id }
             .toResolver()
             .firstOrNull()
-            ?: throw NoDataException("Wrong property")
+            ?: throw NoDataException("Property not found")
     }
 
     @DeleteMapping

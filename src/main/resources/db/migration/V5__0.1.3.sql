@@ -1,4 +1,4 @@
-create table public."user-permission"
+create table public."user_permission"
 (
     id      serial
         primary key,

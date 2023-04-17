@@ -9,7 +9,7 @@ create table public.user2contact
             on delete cascade,
     contact varchar(50)  not null
         constraint fk_user2contact_contact_id
-            references public."user-contact"
+            references public.user_contact
             on update cascade
             on delete cascade,
     value   varchar(100) not null

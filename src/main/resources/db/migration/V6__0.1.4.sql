@@ -1,4 +1,4 @@
-create table public."user-contact"
+create table public."user_contact"
 (
     id   varchar(50) not null
         primary key

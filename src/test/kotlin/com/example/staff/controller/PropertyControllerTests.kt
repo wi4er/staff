@@ -53,6 +53,10 @@ class PropertyControllerTests {
             mockMvc
                 ?.perform(get("/property").header("authorization", token))
                 ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val list = Gson().fromJson(it.response.contentAsString, Array<PropertyResolver>::class.java)
+                    assertEquals(0, list.size)
+                }
         }
 
         @Test
@@ -85,7 +89,7 @@ class PropertyControllerTests {
                 addPermission().also {
                     for (i in 1..10) {
                         PropertyEntity.insert {
-                            it[id] = EntityID("status_${i}", PropertyEntity)
+                            it[id] = EntityID("property_${i}", PropertyEntity)
                         }
                     }
                 }
@@ -98,6 +102,7 @@ class PropertyControllerTests {
                 ?.andExpect {
                     val list = Gson().fromJson(it.response.contentAsString, Array<PropertyResolver>::class.java)
                     assertEquals(5, list.size)
+                    assertEquals("property_5", list.last().id)
                 }
         }
 
@@ -187,9 +192,13 @@ class PropertyControllerTests {
                     post("/property")
                         .header("authorization", token)
                         .header("Content-Type", "application/json")
-                        .content("""{"id": "EMAIL"}""")
+                        .content("""{"id": "NAME"}""")
                 )
                 ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val list = Gson().fromJson(it.response.contentAsString, PropertyResolver::class.java)
+                    assertEquals("NAME", list.id)
+                }
         }
 
         @Test
@@ -244,6 +253,7 @@ class PropertyControllerTests {
         @Test
         fun `Shouldn't add without method permission`() {
             val token = transaction {
+                PropertyEntity.deleteAll()
                 GroupEntity.deleteAll()
                 GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
 
@@ -285,7 +295,7 @@ class PropertyControllerTests {
         }
 
         @Test
-        fun `Should get empty list`() {
+        fun `Should update item`() {
             val token = transaction {
                 PropertyEntity.deleteAll()
 
@@ -298,12 +308,103 @@ class PropertyControllerTests {
 
             mockMvc
                 ?.perform(
-                    put("/property")
+                    put("/property?id=name")
+                        .header("Content-Type", "application/json")
+                        .header("authorization", token)
+                        .content("""{"id": "change"}""")
+                )
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    val item = Gson().fromJson(it.response.contentAsString, PropertyResolver::class.java)
+                    assertEquals("change", item.id)
+                }
+        }
+
+        @Test
+        fun `Shouldn't update with wrong id`() {
+            val token = transaction {
+                PropertyEntity.deleteAll()
+
+                addPermission().also {
+                    PropertyEntity.insert {
+                        it[id] = EntityID("name", ProviderEntity)
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/property?id=wrong")
+                        .header("Content-Type", "application/json")
+                        .header("authorization", token)
+                        .content("""{"id": "wrong"}""")
+                )
+                ?.andExpect(status().isNotFound)
+        }
+
+        @Test
+        fun `Shouldn't update to blank id`() {
+            val token = transaction {
+                PropertyEntity.deleteAll()
+
+                addPermission().also {
+                    PropertyEntity.insert {
+                        it[id] = EntityID("name", ProviderEntity)
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/property?id=name")
+                        .header("Content-Type", "application/json")
+                        .header("authorization", token)
+                        .content("""{"id": ""}""")
+                )
+                ?.andExpect(status().isBadRequest)
+        }
+
+        @Test
+        fun `Should update without token`() {
+            transaction {
+                PropertyEntity.deleteAll()
+
+                PropertyEntity.insert {
+                    it[id] = EntityID("name", PropertyEntity)
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/property?id=name")
+                        .header("Content-Type", "application/json")
+                        .content("""{"id": "name"}""")
+                )
+                ?.andExpect(status().isForbidden)
+        }
+
+        @Test
+        fun `Shouldn't update without method permission`() {
+            val token = transaction {
+                GroupEntity.deleteAll()
+                PropertyEntity.deleteAll()
+                GroupEntity.insert { it[id] = EntityID(777, GroupEntity) }
+
+                PropertyEntity.insert {
+                    it[id] = EntityID("name", PropertyEntity)
+                }
+
+                accountFactory?.createToken(UserAccount(id = 1, groups = listOf(777))) ?: ""
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/property?id=name")
                         .header("Content-Type", "application/json")
                         .header("authorization", token)
                         .content("""{"id": "name"}""")
                 )
-                ?.andExpect(status().isOk)
+                ?.andExpect(status().isForbidden)
         }
     }
 

@@ -26,7 +26,7 @@ import javax.servlet.http.HttpServletResponse
 class ProviderController(
     val accountFactory: AccountFactory,
     val permissionService: MethodPermissionService,
-)  {
+) {
 
     fun Query.toResolver(): List<ProviderResolver> {
         return map {
@@ -104,6 +104,7 @@ class ProviderController(
     @CrossOrigin
     fun updateItem(
         @RequestBody input: ProviderInput,
+        @RequestParam id: String,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): ProviderResolver = transaction {
         authorization ?: throw PermissionException("Permission denied!")
@@ -116,16 +117,21 @@ class ProviderController(
             group = account.groups,
         )
 
-        ProviderEntity.update(
-            where = { ProviderEntity.id eq input.id }
-        ) {
+        try {
+            ProviderEntity.update(
+                where = { ProviderEntity.id eq id }
+            ) {
+                it[ProviderEntity.id] = EntityID(input.id, ProviderEntity)
+            }
+        } catch (ex: Exception) {
+            throw StaffException("Wrong provider")
+        }
 
-        }.let {
-            ProviderEntity
-                .select { ProviderEntity.id eq input.id }
-                .toResolver()
-                .firstOrNull()
-        } ?: throw NoDataException("Wrong contact")
+        ProviderEntity
+            .select { ProviderEntity.id eq input.id }
+            .toResolver()
+            .firstOrNull()
+            ?: throw NoDataException("Wrong provider")
     }
 
     @DeleteMapping

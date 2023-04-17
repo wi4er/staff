@@ -8,6 +8,7 @@ enum class EntityType {
     PROVIDER,
     PROPERTY,
     STATUS,
+    DIRECTORY,
     PUBLIC,
     ADMIN,
 }
