@@ -44,27 +44,27 @@ class PermissionController(
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
         response: HttpServletResponse,
     ): List<PermissionResolver> = transaction {
-        val account: Account? = authorization?.let(accountFactory::createFromToken)
+        authorization ?: throw PermissionException("Permission denied!")
 
-        account?.let {
-            permissionService.check(
-                entity = EntityType.PERMISSION,
-                method = MethodType.GET,
-                group = account.groups,
-            )
+        val account: Account = authorization.let(accountFactory::createFromToken)
 
-            val count: Int = MethodPermissionEntity
-                .selectAll()
-                .count()
+        permissionService.check(
+            entity = EntityType.PERMISSION,
+            method = MethodType.GET,
+            group = account.groups,
+        )
 
-            response.addIntHeader("Content-Size", count)
-            response.addHeader("Access-Control-Expose-Headers", "Content-Size")
+        val count: Int = MethodPermissionEntity
+            .selectAll()
+            .count()
 
-            MethodPermissionEntity
-                .selectAll()
-                .also { it.limit(limit ?: Int.MAX_VALUE, offset ?: 0) }
-                .toResolver()
-        } ?: throw PermissionException("Permission denied!")
+        response.addIntHeader("Content-Size", count)
+        response.addHeader("Access-Control-Expose-Headers", "Content-Size")
+
+        MethodPermissionEntity
+            .selectAll()
+            .also { it.limit(limit ?: Int.MAX_VALUE, offset ?: 0) }
+            .toResolver()
     }
 
     @PostMapping
@@ -73,26 +73,26 @@ class PermissionController(
         @RequestBody input: PermissionInput,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): PermissionResolver = transaction {
-        val account: Account? = authorization?.let(accountFactory::createFromToken)
+        authorization  ?: throw PermissionException("Permission denied!")
 
-        account?.let {
-            permissionService.check(
-                entity = EntityType.PERMISSION,
-                method = MethodType.POST,
-                group = account.groups,
-            )
+        val account: Account = authorization.let(accountFactory::createFromToken)
 
-            MethodPermissionEntity.insertAndGetId {
-                it[method] = input.method ?: throw StaffException("Wrong permission")
-                it[entity] = input.entity ?: throw StaffException("Wrong permission")
-                it[group] = EntityID(input.group, GroupEntity)
-            }.let { id ->
-                MethodPermissionEntity
-                    .select { MethodPermissionEntity.id eq id }
-                    .toResolver()
-                    .firstOrNull()
-            } ?: throw Exception("Wrong permission")
-        } ?: throw PermissionException("Permission denied!")
+        permissionService.check(
+            entity = EntityType.PERMISSION,
+            method = MethodType.POST,
+            group = account.groups,
+        )
+
+        MethodPermissionEntity.insertAndGetId {
+            it[method] = input.method ?: throw StaffException("Wrong permission")
+            it[entity] = input.entity ?: throw StaffException("Wrong permission")
+            it[group] = EntityID(input.group, GroupEntity)
+        }.let { id ->
+            MethodPermissionEntity
+                .select { MethodPermissionEntity.id eq id }
+                .toResolver()
+                .firstOrNull()
+        } ?: throw Exception("Wrong permission")
     }
 
     @PutMapping
@@ -101,28 +101,28 @@ class PermissionController(
         @RequestBody input: PermissionInput,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): PermissionResolver = transaction {
-        val account: Account? = authorization?.let(accountFactory::createFromToken)
+        authorization ?: throw PermissionException("Permission denied!")
 
-        account?.let {
-            permissionService.check(
-                entity = EntityType.PERMISSION,
-                method = MethodType.PUT,
-                group = account.groups,
-            )
+        val account: Account = authorization.let(accountFactory::createFromToken)
 
-            MethodPermissionEntity.update(
-                where = { MethodPermissionEntity.id eq input.id }
-            ) {
-                it[entity] = input.entity ?: throw StaffException("Wrong permission")
-                it[method] = input.method ?: throw StaffException("Wrong permission")
-                it[group] = EntityID(input.group, GroupEntity)
-            }.let {
-                MethodPermissionEntity
-                    .select { MethodPermissionEntity.id eq it }
-                    .toResolver()
-                    .firstOrNull()
-            } ?: throw NoDataException("Wrong permission")
-        } ?: throw PermissionException("Permission denied!")
+        permissionService.check(
+            entity = EntityType.PERMISSION,
+            method = MethodType.PUT,
+            group = account.groups,
+        )
+
+        MethodPermissionEntity.update(
+            where = { MethodPermissionEntity.id eq input.id }
+        ) {
+            it[entity] = input.entity ?: throw StaffException("Wrong permission")
+            it[method] = input.method ?: throw StaffException("Wrong permission")
+            it[group] = EntityID(input.group, GroupEntity)
+        }.let {
+            MethodPermissionEntity
+                .select { MethodPermissionEntity.id eq it }
+                .toResolver()
+                .firstOrNull()
+        } ?: throw NoDataException("Wrong permission")
     }
 
     @DeleteMapping
@@ -131,21 +131,21 @@ class PermissionController(
         @RequestParam id: Int,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): PermissionResolver  = transaction {
-        val account: Account? = authorization?.let(accountFactory::createFromToken)
+        authorization ?: throw PermissionException("Permission denied!")
 
-        account?.let {
-            permissionService.check(
-                entity = EntityType.PERMISSION,
-                method = MethodType.DELETE,
-                group = account.groups,
-            )
+        val account: Account = authorization.let(accountFactory::createFromToken)
 
-            MethodPermissionEntity
-                .select { MethodPermissionEntity.id eq id }
-                .toResolver()
-                .firstOrNull()
-                ?.also { MethodPermissionEntity.deleteWhere { MethodPermissionEntity.id eq id } }
-                ?: throw NoDataException("Wrong permission")
-        } ?: throw PermissionException("Permission denied!")
+        permissionService.check(
+            entity = EntityType.PERMISSION,
+            method = MethodType.DELETE,
+            group = account.groups,
+        )
+
+        MethodPermissionEntity
+            .select { MethodPermissionEntity.id eq id }
+            .toResolver()
+            .firstOrNull()
+            ?.also { MethodPermissionEntity.deleteWhere { MethodPermissionEntity.id eq id } }
+            ?: throw NoDataException("Wrong permission")
     }
 }

@@ -721,7 +721,7 @@ class UserControllerTests {
 
             mockMvc
                 ?.perform(
-                    put("/user")
+                    put("/user?id=1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"id":1, "login":"NEW_NAME"}""")
                         .header("authorization", token)
@@ -748,7 +748,7 @@ class UserControllerTests {
 
             mockMvc
                 ?.perform(
-                    put("/user")
+                    put("/user?id=1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"id":1, "login":"NEW_NAME", "group": [33]}""")
                         .header("authorization", token)
@@ -780,7 +780,7 @@ class UserControllerTests {
 
             mockMvc
                 ?.perform(
-                    put("/user")
+                    put("/user?id=1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"id":1, "login":"NEW_NAME", "group": []}""")
                         .header("authorization", token)
@@ -812,7 +812,7 @@ class UserControllerTests {
 
             mockMvc
                 ?.perform(
-                    put("/user")
+                    put("/user?id=1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"id":1, "login":"NEW_NAME", "group": [44]}""")
                         .header("authorization", token)
@@ -845,7 +845,7 @@ class UserControllerTests {
 
             mockMvc
                 ?.perform(
-                    put("/user")
+                    put("/user?id=1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{
                             |"id":1, 
@@ -887,7 +887,7 @@ class UserControllerTests {
 
             mockMvc
                 ?.perform(
-                    put("/user")
+                    put("/user?id=1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"id":1, "login":"NEW_NAME","contact": []}""".trimMargin())
                         .header("authorization", token)
@@ -906,14 +906,14 @@ class UserControllerTests {
                 addPermission()
             }
 
-            assertThrows<Exception> {
-                mockMvc?.perform(
-                    put("/user")
+            mockMvc
+                ?.perform(
+                    put("/user?id=1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"id":1, "login":"NEW_NAME"}""")
                         .header("authorization", token)
                 )
-            }
+                ?.andExpect(status().isNotFound)
         }
     }
 

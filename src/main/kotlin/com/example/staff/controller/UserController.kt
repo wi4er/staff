@@ -156,6 +156,7 @@ class UserController(
     @CrossOrigin
     fun updateItem(
         @RequestBody input: UserInput,
+        @RequestParam id: Int,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
     ): UserResolver = transaction {
         authorization ?: throw PermissionException("Permission denied!")
@@ -168,18 +169,24 @@ class UserController(
             group = account.groups,
         )
 
-        UserEntity.update(
-            where = { UserEntity.id eq input.id }
-        ) {
-            it[login] = input.login
+        try {
+            UserEntity.update(
+                where = { UserEntity.id eq id }
+            ) {
+                it[this.id] = EntityID(id, UserEntity)
+                it[login] = input.login
+            }
+        } catch (ex: Exception) {
+            throw StaffException("Wrong user")
         }.also { id ->
             saver.forEach { it.save(EntityID(id, UserEntity), input) }
-        }.let {
-            UserEntity
-                .select { UserEntity.id eq it }
-                .toResolver()
-                .firstOrNull()
-        } ?: throw Exception("Wrong user")
+        }
+
+        UserEntity
+            .select { UserEntity.id eq id }
+            .toResolver()
+            .firstOrNull()
+            ?: throw NoDataException("User not found")
     }
 
     @DeleteMapping
