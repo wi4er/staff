@@ -36,7 +36,6 @@ class UserContactSaver : UserSaver {
                     User2ContactEntity.user eq userId
                     )
             }
-            println(it)
         }
 
         (update - current).forEach { input ->

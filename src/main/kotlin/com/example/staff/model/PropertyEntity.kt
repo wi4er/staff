@@ -9,4 +9,10 @@ object PropertyEntity: IdTable<String>(name = "property") {
         .uniqueIndex()
         .primaryKey()
         .entityId()
+
+    val type: Column<PropertyType> = enumerationByName(
+        name = "type",
+        klass = PropertyType::class,
+        length = 10,
+    )
 }

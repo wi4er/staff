@@ -11,16 +11,14 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.web.servlet.MockMvc
-import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import com.google.gson.Gson
 import org.jetbrains.exposed.dao.EntityID
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.Assertions
-import org.junit.jupiter.api.assertThrows
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
-import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.*
 
 class UserControllerTests {
     @SpringBootTest
@@ -263,6 +261,89 @@ class UserControllerTests {
         }
 
         @Test
+        fun `Should get user with string`() {
+            val token = transaction {
+                UserEntity.deleteAll()
+                PropertyEntity.deleteAll()
+
+                addPermission().also {
+                    User2StringEntity.insert {
+                        it[user] = UserEntity.insertAndGetId {
+                            it[id] = EntityID(333, UserEntity)
+                            it[login] = "user_name"
+                        }
+
+                        it[property] = PropertyEntity.insertAndGetId {
+                            it[id] = EntityID("name", PropertyEntity)
+                            it[type] = PropertyType.STRING
+                        }
+                        it[value] = "VALUE"
+                    }
+
+                    UserPermissionEntity.insert {
+                        it[user] = EntityID(333, UserEntity)
+                        it[method] = MethodType.GET
+                        it[group] = EntityID(777, GroupEntity)
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(get("/user").header("authorization", token))
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    println(it.response.contentAsString)
+//                    val list = Gson().fromJson(it.response.contentAsString, Array<UserResolver>::class.java)
+//
+//                    Assertions.assertEquals(1, list.size)
+//                    Assertions.assertEquals(1, list.first().property.size)
+//                    Assertions.assertEquals("name", list.first().property.first().property)
+//                    Assertions.assertEquals("VALUE", list.first().property.first().value)
+                }
+        }
+
+        @Test
+        fun `Should get user with point`() {
+            val token = transaction {
+                UserEntity.deleteAll()
+                PropertyEntity.deleteAll()
+                DirectoryEntity.deleteAll()
+
+                addPermission().also {
+                    User2PointEntity.insert {
+                        it[user] = UserEntity.insertAndGetId {
+                            it[id] = EntityID(333, UserEntity)
+                            it[login] = "user_name"
+                        }
+                        it[property] = PropertyEntity.insertAndGetId {
+                            it[id] = EntityID("name", PropertyEntity)
+                            it[type] = PropertyType.STRING
+                        }
+                        it[point] = PointEntity.insertAndGetId { some ->
+                            some[id] = EntityID("London", PointEntity)
+                            some[directory] = DirectoryEntity.insertAndGetId {
+                                it[id] = EntityID("city", DirectoryEntity)
+                            }
+                        }
+                    }
+
+                    UserPermissionEntity.insert {
+                        it[user] = EntityID(333, UserEntity)
+                        it[method] = MethodType.GET
+                        it[group] = EntityID(777, GroupEntity)
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(get("/user").header("authorization", token))
+                ?.andExpect(status().isOk)
+                ?.andExpect {
+                    println(it.response.contentAsString)
+                }
+        }
+
+        @Test
         fun `Should get user with password`() {
             val token = transaction {
                 UserEntity.deleteAll()
@@ -350,7 +431,7 @@ class UserControllerTests {
                     val group1 = GroupEntity.insertAndGetId { it[id] = EntityID(1, GroupEntity) }
                     val group2 = GroupEntity.insertAndGetId { it[id] = EntityID(2, GroupEntity) }
 
-                    for (i in 1..10) {
+                    for (i in 1..100) {
                         val userId = UserEntity.insertAndGetId {
                             it[id] = EntityID(i, UserEntity)
                             it[login] = "user_name_${i.toString().padStart(3, '0')}"
@@ -376,13 +457,9 @@ class UserControllerTests {
             mockMvc
                 ?.perform(get("/user").header("authorization", token))
                 ?.andExpect(status().isOk)
-                ?.andExpect(header().string("Content-Size", "10"))
-                ?.andExpect {
-                    val list = Gson().fromJson(it.response.contentAsString, Array<UserResolver>::class.java)
-
-                    Assertions.assertEquals(10, list.size)
-                    Assertions.assertEquals(listOf(1, 2), list.first().group)
-                }
+                ?.andExpect(header().string("Content-Size", "100"))
+                ?.andExpect(jsonPath("$[0].group[0]").value(1))
+                ?.andExpect(jsonPath("$[0].group[1]").value(2))
         }
 
         @Test
@@ -682,6 +759,39 @@ class UserControllerTests {
                     Assertions.assertEquals("mail", item.contact.first().contact)
                 }
         }
+
+        @Test
+        fun `Should post with strings`() {
+            val token = transaction {
+                UserEntity.deleteAll()
+                PropertyEntity.deleteAll()
+
+                addPermission().also {
+                    PropertyEntity.insert {
+                        it[id] = EntityID("name", ContactEntity)
+                        it[type] = PropertyType.STRING
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    post("/user")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{
+                            |"login":"root_admin",
+                            |"property": [{
+                            |  "property": "name",
+                            |  "value": "John"
+                            |}]
+                            |}""".trimMargin())
+                        .header("authorization", token)
+                )
+                ?.andExpect(status().isOk)
+                ?.andExpect(jsonPath("$.property[0].property").value("name"))
+                ?.andExpect(jsonPath("$.property[0].value").value("John"))
+                ?.andExpect(jsonPath("$.property[1]").doesNotExist())
+        }
     }
 
     @SpringBootTest
@@ -847,11 +957,13 @@ class UserControllerTests {
                 ?.perform(
                     put("/user?id=1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""{
+                        .content(
+                            """{
                             |"id":1, 
                             |"login":"NEW_NAME", 
                             |"contact": [{"contact": "mail", "value": "mail@mail.com"}]
-                            |}""".trimMargin())
+                            |}""".trimMargin()
+                        )
                         .header("authorization", token)
                 )
                 ?.andExpect(status().isOk)
@@ -860,6 +972,106 @@ class UserControllerTests {
                     Assertions.assertEquals(1, item.contact.size)
                     Assertions.assertEquals("mail@mail.com", item.contact.first().value)
                 }
+        }
+
+        @Test
+        fun `Should add string to user`() {
+            val token = transaction {
+                UserEntity.deleteAll()
+                PropertyEntity.deleteAll()
+
+                addPermission().also {
+                    UserEntity.insert {
+                        it[id] = EntityID(1, UserEntity)
+                        it[login] = "OLD_NAME"
+                    }
+                    PropertyEntity.insert {
+                        it[id] = EntityID("name", ContactEntity)
+                        it[type] = PropertyType.STRING
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/user?id=1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                            """{
+                            |"id":1, 
+                            |"login":"NEW_NAME", 
+                            |"property": [{"property": "name", "value": "John"}]
+                            |}""".trimMargin()
+                        )
+                        .header("authorization", token)
+                )
+                ?.andExpect(status().isOk)
+                ?.andExpect(jsonPath("$.property[0].property").value("name"))
+                ?.andExpect(jsonPath("$.property[0].value").value("John"))
+                ?.andExpect(jsonPath("$.property[1]").doesNotExist())
+        }
+
+        @Test
+        fun `Should remove string from user`() {
+            val token = transaction {
+                UserEntity.deleteAll()
+                PropertyEntity.deleteAll()
+
+                addPermission().also {
+                    UserEntity.insert {
+                        it[id] = EntityID(1, UserEntity)
+                        it[login] = "OLD_NAME"
+                    }
+                    PropertyEntity.insert {
+                        it[id] = EntityID("name", ContactEntity)
+                        it[type] = PropertyType.STRING
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/user?id=1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"id":1, "login":"NEW_NAME", "property": []}""")
+                        .header("authorization", token)
+                )
+                ?.andExpect(status().isOk)
+                ?.andExpect(jsonPath("$.property[0]").doesNotExist())
+        }
+
+        @Test
+        fun `Should update string in user`() {
+            val token = transaction {
+                UserEntity.deleteAll()
+                PropertyEntity.deleteAll()
+
+                addPermission().also {
+                    UserEntity.insert {
+                        it[id] = EntityID(1, UserEntity)
+                        it[login] = "user_NAME"
+                    }
+                    PropertyEntity.insert {
+                        it[id] = EntityID("name", ContactEntity)
+                        it[type] = PropertyType.STRING
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(
+                    put("/user?id=1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{
+                            |"id":1, 
+                            |"login":"NEW_NAME", 
+                            |"property": [{"property": "name", "value": "updated"}]
+                            |}""".trimMargin())
+                        .header("authorization", token)
+                )
+                ?.andExpect(status().isOk)
+                ?.andExpect(jsonPath("$.property[0].property").value("name"))
+                ?.andExpect(jsonPath("$.property[0].value").value("updated"))
         }
 
         @Test

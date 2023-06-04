@@ -5,7 +5,6 @@ import org.jetbrains.exposed.sql.Database
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import javax.sql.DataSource
 
-
 @SpringBootApplication
 class StaffApplication(
     dataSource: DataSource,
@@ -13,8 +12,11 @@ class StaffApplication(
     init {
         Database.connect(dataSource)
 
-		val flyway = Flyway.configure().dataSource(dataSource).load()
-		flyway.migrate()
+        Flyway
+            .configure()
+            .dataSource(dataSource)
+            .load()
+            .migrate()
     }
 }
 

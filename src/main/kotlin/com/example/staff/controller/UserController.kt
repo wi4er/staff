@@ -3,11 +3,14 @@ package com.example.staff.controller
 import com.example.staff.exception.NoDataException
 import com.example.staff.exception.PermissionException
 import com.example.staff.exception.StaffException
+import com.example.staff.filler.user.UserFiller
 import com.example.staff.input.UserInput
 import com.example.staff.model.*
 import com.example.staff.permission.*
 import com.example.staff.resolver.UserContactResolver
+import com.example.staff.resolver.UserPointResolver
 import com.example.staff.resolver.UserResolver
+import com.example.staff.resolver.UserStringResolver
 import com.example.staff.saver.user.UserSaver
 import org.jetbrains.exposed.dao.EntityID
 import org.jetbrains.exposed.sql.*
@@ -20,6 +23,7 @@ import javax.servlet.http.HttpServletResponse
 @RequestMapping("/user")
 class UserController(
     val saver: List<UserSaver>,
+    val filler: List<UserFiller>,
     val accountFactory: AccountFactory,
     val permissionService: MethodPermissionService,
 ) {
@@ -28,52 +32,31 @@ class UserController(
             map[it[UserEntity.id].value] = UserResolver(
                 id = it[UserEntity.id].value,
                 login = it[UserEntity.login],
-                group = mutableListOf(),
-                contact = mutableListOf(),
             )
         }
 
-        User2GroupEntity
-            .select { User2GroupEntity.user inList map.keys }
-            .forEach { group ->
-                map[group[User2GroupEntity.user].value]?.let {
-                    it.group.add(group[User2GroupEntity.group].value)
-                }
-            }
-
-        User2ContactEntity
-            .select { User2ContactEntity.user inList map.keys }
-            .forEach { contact ->
-                map[contact[User2ContactEntity.user].value]?.let {
-                    it.contact.add(
-                        UserContactResolver(
-                            contact = contact[User2ContactEntity.contact].value,
-                            value = contact[User2ContactEntity.value],
-                        )
-                    )
-                }
-            }
-
-        User2ProviderEntity
-            .select { User2ProviderEntity.user inList map.keys }
-            .forEach { row ->
-                map[row[User2ProviderEntity.user].value]?.let {
-                    it.provider[row[User2ProviderEntity.provider].value] = row[User2ProviderEntity.hash]
-                }
-            }
+        filler.forEach { it.fill(map) }
     }.values.toList()
 
 
-    fun Query.toFilter(filter: Map<String, String>?): Query = also {
+    fun Query.toFilter(filter: List<String>?): Query = also {
 //        filter?.get("filter[group]")?.let { group ->
 //            andWhere { User2GroupEntity.group eq group.toInt() }
 //        }
+
+        for (item in filter ?: listOf()) {
+            val value: List<String> = item.split("-")
+
+            if (value[1] == "eq") {
+                andWhere { PropertyEntity.id eq value[2] }
+            }
+        }
     }
 
     @GetMapping
     @CrossOrigin
     fun getList(
-        @RequestParam filter: Map<String, String>?,
+        @RequestParam filter: List<String>?,
         @RequestParam limit: Int?,
         @RequestParam offset: Int?,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
@@ -138,8 +121,9 @@ class UserController(
         )
 
         val id: EntityID<Int> = try {
-            UserEntity.insertAndGetId {
-                it[login] = input.login
+            UserEntity.insertAndGetId { insert ->
+                input.id?.let { insert[id] = EntityID(it, UserEntity) }
+                insert[login] = input.login ?: throw StaffException("Login expected!")
             }.also { id -> saver.forEach { it.save(id, input) } }
         } catch (ex: Exception) {
             throw StaffException("Wrong user")
@@ -174,7 +158,7 @@ class UserController(
                 where = { UserEntity.id eq id }
             ) {
                 it[this.id] = EntityID(id, UserEntity)
-                it[login] = input.login
+                it[login] = input.login ?: throw StaffException("Login expected!")
             }
         } catch (ex: Exception) {
             throw StaffException("Wrong user")

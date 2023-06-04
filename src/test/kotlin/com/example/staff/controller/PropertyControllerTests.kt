@@ -66,7 +66,8 @@ class PropertyControllerTests {
                 addPermission().also {
                     for (i in 1..10) {
                         PropertyEntity.insert {
-                            it[id] = EntityID("status_${i}", StatusEntity)
+                            it[id] = EntityID("name_${i}", StatusEntity)
+                            it[type] = PropertyType.STRING
                         }
                     }
                 }
@@ -83,6 +84,31 @@ class PropertyControllerTests {
         }
 
         @Test
+        fun `Should get by id`() {
+            val token = transaction {
+                PropertyEntity.deleteAll()
+                addPermission().also {
+                    for (i in 1..10) {
+                        PropertyEntity.insert {
+                            it[id] = EntityID("name_${i}", StatusEntity)
+                            it[type] = PropertyType.STRING
+                        }
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(get("/property?filter=name-eq-name_5").header("authorization", token))
+                ?.andExpect(status().isOk)
+                ?.andExpect(header().string("Content-Size", "10"))
+                ?.andExpect {
+                    val list = Gson().fromJson(it.response.contentAsString, Array<PropertyResolver>::class.java)
+                    assertEquals(1, list.size)
+                    assertEquals("name_5", list.firstOrNull()?.id)
+                }
+        }
+
+        @Test
         fun `Should get list with limit`() {
             val token = transaction {
                 PropertyEntity.deleteAll()
@@ -90,6 +116,7 @@ class PropertyControllerTests {
                     for (i in 1..10) {
                         PropertyEntity.insert {
                             it[id] = EntityID("property_${i}", PropertyEntity)
+                            it[type] = PropertyType.STRING
                         }
                     }
                 }
@@ -114,6 +141,7 @@ class PropertyControllerTests {
                     for (i in 1..10) {
                         PropertyEntity.insert {
                             it[id] = EntityID("status_${i}", PropertyEntity)
+                            it[type] = PropertyType.STRING
                         }
                     }
                 }
@@ -192,13 +220,11 @@ class PropertyControllerTests {
                     post("/property")
                         .header("authorization", token)
                         .header("Content-Type", "application/json")
-                        .content("""{"id": "NAME"}""")
+                        .content("""{"id": "NAME", "type": "STRING"}""")
                 )
                 ?.andExpect(status().isOk)
-                ?.andExpect {
-                    val list = Gson().fromJson(it.response.contentAsString, PropertyResolver::class.java)
-                    assertEquals("NAME", list.id)
-                }
+                ?.andExpect(jsonPath("$.id").value("NAME"))
+                ?.andExpect(jsonPath("$.type").value("STRING"))
         }
 
         @Test
@@ -213,7 +239,41 @@ class PropertyControllerTests {
                     post("/property")
                         .header("authorization", token)
                         .header("Content-Type", "application/json")
-                        .content("""{}""")
+                        .content("""{"type": "STRING"}""")
+                )
+                ?.andExpect(status().isBadRequest)
+        }
+
+        @Test
+        fun `Shouldn't add without type`() {
+            val token = transaction {
+                PropertyEntity.deleteAll()
+                addPermission()
+            }
+
+            mockMvc
+                ?.perform(
+                    post("/property")
+                        .header("authorization", token)
+                        .header("Content-Type", "application/json")
+                        .content("""{"id": "NAME"}""")
+                )
+                ?.andExpect(status().isBadRequest)
+        }
+
+        @Test
+        fun `Shouldn't add with wrong type`() {
+            val token = transaction {
+                PropertyEntity.deleteAll()
+                addPermission()
+            }
+
+            mockMvc
+                ?.perform(
+                    post("/property")
+                        .header("authorization", token)
+                        .header("Content-Type", "application/json")
+                        .content("""{"id": "NAME", "type": "WRONG"}""")
                 )
                 ?.andExpect(status().isBadRequest)
         }
@@ -230,7 +290,7 @@ class PropertyControllerTests {
                     post("/property")
                         .header("authorization", token)
                         .header("Content-Type", "application/json")
-                        .content("""{"id": ""}""")
+                        .content("""{"id": "", "type": "STRING"}""")
                 )
                 ?.andExpect(status().isBadRequest)
         }
@@ -245,7 +305,7 @@ class PropertyControllerTests {
                 ?.perform(
                     post("/property")
                         .header("Content-Type", "application/json")
-                        .content("""{"id": "EMAIL"}""")
+                        .content("""{"id": "EMAIL", "type": "STRING"}""")
                 )
                 ?.andExpect(status().isForbidden)
         }
@@ -265,7 +325,7 @@ class PropertyControllerTests {
                     post("/property")
                         .header("authorization", token)
                         .header("Content-Type", "application/json")
-                        .content("""{"id": "EMAIL"}""")
+                        .content("""{"id": "EMAIL", "type": "STRING"}""")
                 )
                 ?.andExpect(status().isForbidden)
         }
@@ -302,6 +362,7 @@ class PropertyControllerTests {
                 addPermission().also {
                     PropertyEntity.insert {
                         it[id] = EntityID("name", ProviderEntity)
+                        it[type] = PropertyType.STRING
                     }
                 }
             }
@@ -311,13 +372,11 @@ class PropertyControllerTests {
                     put("/property?id=name")
                         .header("Content-Type", "application/json")
                         .header("authorization", token)
-                        .content("""{"id": "change"}""")
+                        .content("""{"id": "change", "type": "USER"}""")
                 )
                 ?.andExpect(status().isOk)
-                ?.andExpect {
-                    val item = Gson().fromJson(it.response.contentAsString, PropertyResolver::class.java)
-                    assertEquals("change", item.id)
-                }
+                ?.andExpect(jsonPath("$.id").value("change"))
+                ?.andExpect(jsonPath("$.type").value("USER"))
         }
 
         @Test
@@ -328,6 +387,7 @@ class PropertyControllerTests {
                 addPermission().also {
                     PropertyEntity.insert {
                         it[id] = EntityID("name", ProviderEntity)
+                        it[type] = PropertyType.STRING
                     }
                 }
             }
@@ -337,7 +397,7 @@ class PropertyControllerTests {
                     put("/property?id=wrong")
                         .header("Content-Type", "application/json")
                         .header("authorization", token)
-                        .content("""{"id": "wrong"}""")
+                        .content("""{"id": "wrong", "type": "STRING"}""")
                 )
                 ?.andExpect(status().isNotFound)
         }
@@ -350,6 +410,7 @@ class PropertyControllerTests {
                 addPermission().also {
                     PropertyEntity.insert {
                         it[id] = EntityID("name", ProviderEntity)
+                        it[type] = PropertyType.STRING
                     }
                 }
             }
@@ -359,7 +420,7 @@ class PropertyControllerTests {
                     put("/property?id=name")
                         .header("Content-Type", "application/json")
                         .header("authorization", token)
-                        .content("""{"id": ""}""")
+                        .content("""{"id": "", "type": "STRING"}""")
                 )
                 ?.andExpect(status().isBadRequest)
         }
@@ -371,6 +432,7 @@ class PropertyControllerTests {
 
                 PropertyEntity.insert {
                     it[id] = EntityID("name", PropertyEntity)
+                    it[type] = PropertyType.STRING
                 }
             }
 
@@ -378,7 +440,7 @@ class PropertyControllerTests {
                 ?.perform(
                     put("/property?id=name")
                         .header("Content-Type", "application/json")
-                        .content("""{"id": "name"}""")
+                        .content("""{"id": "name", "type": "STRING"}""")
                 )
                 ?.andExpect(status().isForbidden)
         }
@@ -392,6 +454,7 @@ class PropertyControllerTests {
 
                 PropertyEntity.insert {
                     it[id] = EntityID("name", PropertyEntity)
+                    it[type] = PropertyType.STRING
                 }
 
                 accountFactory?.createToken(UserAccount(id = 1, groups = listOf(777))) ?: ""
@@ -402,7 +465,7 @@ class PropertyControllerTests {
                     put("/property?id=name")
                         .header("Content-Type", "application/json")
                         .header("authorization", token)
-                        .content("""{"id": "name"}""")
+                        .content("""{"id": "name", "type": "STRING"}""")
                 )
                 ?.andExpect(status().isForbidden)
         }
@@ -439,6 +502,7 @@ class PropertyControllerTests {
                 addPermission().also {
                     PropertyEntity.insert {
                         it[id] = EntityID("name", PropertyEntity)
+                        it[type] = PropertyType.STRING
                     }
                 }
             }
@@ -458,6 +522,7 @@ class PropertyControllerTests {
 
                 PropertyEntity.insert {
                     it[id] = EntityID("name", PropertyEntity)
+                    it[type] = PropertyType.STRING
                 }
             }
 
@@ -475,6 +540,7 @@ class PropertyControllerTests {
 
                 PropertyEntity.insert {
                     it[id] = EntityID("name", PropertyEntity)
+                    it[type] = PropertyType.STRING
                 }
 
                 accountFactory?.createToken(UserAccount(id = 1, groups = listOf(777))) ?: ""
@@ -496,6 +562,7 @@ class PropertyControllerTests {
                 addPermission().also {
                     PropertyEntity.insert {
                         it[id] = EntityID("name", PropertyEntity)
+                        it[type] = PropertyType.STRING
                     }
                 }
             }

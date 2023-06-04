@@ -13,6 +13,7 @@ import org.jetbrains.exposed.dao.EntityID
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.springframework.http.HttpHeaders
+import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.*
 import javax.servlet.http.HttpServletResponse
 
@@ -24,13 +25,26 @@ class PropertyController(
 ) {
     fun Query.toResolver(): List<PropertyResolver> = map {
         PropertyResolver(
-            id = it[PropertyEntity.id].value
+            id = it[PropertyEntity.id].value,
+            type = it[PropertyEntity.type].toString(),
         )
+    }
+
+    fun Query.toFilter(filter: List<String>?): Query = also {
+        for (item in filter ?: listOf()) {
+            val value: List<String> = item.split("-")
+
+            if (value[1] == "eq") {
+                andWhere { PropertyEntity.id eq value[2] }
+            }
+        }
     }
 
     @GetMapping
     @CrossOrigin
     fun getList(
+        @RequestParam filter: List<String>?,
+        @RequestParam id: String?,
         @RequestParam limit: Int?,
         @RequestParam offset: Int?,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
@@ -53,11 +67,16 @@ class PropertyController(
         response.addIntHeader("Content-Size", count)
         response.addHeader("Access-Control-Expose-Headers", "Content-Size")
 
-        PropertyEntity
-            .slice(PropertyEntity.id)
-            .selectAll()
-            .also { it.limit(limit ?: Int.MAX_VALUE, offset ?: 0) }
-            .toResolver()
+        try {
+            PropertyEntity
+                .slice(PropertyEntity.id, PropertyEntity.type)
+                .selectAll()
+                .toFilter(filter)
+                .also { it.limit(limit ?: Int.MAX_VALUE, offset ?: 0) }
+                .toResolver()
+        } catch (ex: Exception) {
+            throw ex
+        }
     }
 
     @PostMapping
@@ -79,6 +98,7 @@ class PropertyController(
         val id: EntityID<String> = try {
             PropertyEntity.insertAndGetId {
                 it[id] = EntityID(input.id ?: throw StaffException("Property id expected"), ProviderEntity)
+                it[type] = PropertyType.valueOf(input.type ?: throw StaffException("Property type expected"))
             }
         } catch (ex: Exception) {
             throw StaffException("Wrong property")
@@ -113,6 +133,7 @@ class PropertyController(
                 where = { PropertyEntity.id eq id }
             ) {
                 it[PropertyEntity.id] = EntityID(input.id, PropertyEntity)
+                it[type] = PropertyType.valueOf(input.type ?: throw StaffException("Property type expected"))
             }
         } catch (ex: Exception) {
             throw StaffException("Wrong property")

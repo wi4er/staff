@@ -132,6 +132,30 @@ class LangControllerTests {
         }
 
         @Test
+        fun `Should get list with idd filter`() {
+            val token = transaction {
+                LangEntity.deleteAll()
+                addPermission().also {
+                    for (i in 1..10) {
+                        LangEntity.insert {
+                            it[id] = EntityID("lang_${i}", LangEntity)
+                        }
+                    }
+                }
+            }
+
+            mockMvc
+                ?.perform(get("/lang?filter=id-eq-lang_6").header("authorization", token))
+                ?.andExpect(status().isOk)
+                ?.andExpect(header().string("Content-Size", "10"))
+                ?.andExpect {
+                    val list = Gson().fromJson(it.response.contentAsString, Array<LangResolver>::class.java)
+                    assertEquals(1, list.size)
+                    assertEquals("lang_6", list.first().id)
+                }
+        }
+
+        @Test
         fun `Shouldn't get without token`() {
             mockMvc
                 ?.perform(get("/lang"))

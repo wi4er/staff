@@ -10,5 +10,9 @@ object ContactEntity: IdTable<String>(name = "user_contact") {
         .primaryKey()
         .entityId()
 
-    val type: Column<ContactType> = enumerationByName(name = "type", klass = ContactType::class, length = 50)
+    val type: Column<ContactType> = enumerationByName(
+        name = "type",
+        klass = ContactType::class,
+        length = 50,
+    )
 }

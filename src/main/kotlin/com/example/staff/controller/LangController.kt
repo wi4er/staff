@@ -29,9 +29,20 @@ class LangController(
         )
     }
 
+    fun Query.toFilter(filter: List<String>?): Query = also {
+        for (item in filter ?: listOf()) {
+            val value: List<String> = item.split("-")
+
+            if (value[1] == "eq") {
+                andWhere { LangEntity.id eq value[2] }
+            }
+        }
+    }
+
     @GetMapping
     @CrossOrigin
     fun getList(
+        @RequestParam filter: List<String>?,
         @RequestParam limit: Int?,
         @RequestParam offset: Int?,
         @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String?,
@@ -57,6 +68,7 @@ class LangController(
         LangEntity
             .slice(LangEntity.id)
             .selectAll()
+            .toFilter(filter)
             .also { it.limit(limit ?: Int.MAX_VALUE, offset ?: 0) }
             .toResolver()
     }
